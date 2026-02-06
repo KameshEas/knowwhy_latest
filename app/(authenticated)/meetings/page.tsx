@@ -21,12 +21,13 @@ export default function MeetingsPage() {
   const [syncing, setSyncing] = useState(false)
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [creating, setCreating] = useState(false)
+  const [createdMeetLink, setCreatedMeetLink] = useState<string | null>(null)
   const [formData, setFormData] = useState({
     title: "",
     description: "",
     startTime: "",
     endTime: "",
-    meetLink: "",
+    attendees: "",
   })
 
   const fetchMeetings = async () => {
@@ -64,15 +65,27 @@ export default function MeetingsPage() {
     e.preventDefault()
     setCreating(true)
     try {
+      const attendees = formData.attendees
+        .split(",")
+        .map((email) => email.trim())
+        .filter((email) => email.length > 0)
+
       const response = await fetch("/api/meetings/create", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
+        body: JSON.stringify({
+          title: formData.title,
+          description: formData.description,
+          startTime: formData.startTime,
+          endTime: formData.endTime,
+          attendees,
+        }),
       })
       const data = await response.json()
       if (data.success) {
+        setCreatedMeetLink(data.meetLink)
         setShowCreateModal(false)
-        setFormData({ title: "", description: "", startTime: "", endTime: "", meetLink: "" })
+        setFormData({ title: "", description: "", startTime: "", endTime: "", attendees: "" })
         await fetchMeetings()
       }
     } catch (error) {
@@ -118,6 +131,52 @@ export default function MeetingsPage() {
         </div>
       </div>
 
+      {/* Success Modal with Meet Link */}
+      {createdMeetLink && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-zinc-950 rounded-lg p-6 w-full max-w-md">
+            <div className="text-center">
+              <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+              <h2 className="text-xl font-semibold mb-2">Meeting Created!</h2>
+              <p className="text-zinc-500 mb-4">Your Google Meet has been created and added to your calendar.</p>
+              <div className="bg-zinc-100 dark:bg-zinc-900 p-4 rounded-lg mb-4">
+                <p className="text-sm text-zinc-500 mb-1">Meet Link:</p>
+                <a
+                  href={createdMeetLink}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-blue-600 hover:text-blue-800 font-medium break-all"
+                >
+                  {createdMeetLink}
+                </a>
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => setCreatedMeetLink(null)}
+                  className="flex-1"
+                >
+                  Close
+                </Button>
+                <Button
+                  onClick={() => {
+                    window.open(createdMeetLink, "_blank")
+                    setCreatedMeetLink(null)
+                  }}
+                  className="flex-1"
+                >
+                  Join Now
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Create Meeting Modal */}
       {showCreateModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
@@ -125,7 +184,7 @@ export default function MeetingsPage() {
             <h2 className="text-xl font-semibold mb-4">Create New Meeting</h2>
             <form onSubmit={createMeeting} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium mb-1">Title</label>
+                <label className="block text-sm font-medium mb-1">Title *</label>
                 <input
                   type="text"
                   required
@@ -146,7 +205,7 @@ export default function MeetingsPage() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1">Start Time</label>
+                <label className="block text-sm font-medium mb-1">Start Time *</label>
                 <input
                   type="datetime-local"
                   required
@@ -156,7 +215,7 @@ export default function MeetingsPage() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1">End Time</label>
+                <label className="block text-sm font-medium mb-1">End Time *</label>
                 <input
                   type="datetime-local"
                   required
@@ -166,13 +225,13 @@ export default function MeetingsPage() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1">Meet Link (optional)</label>
+                <label className="block text-sm font-medium mb-1">Attendees (comma-separated emails)</label>
                 <input
-                  type="url"
-                  value={formData.meetLink}
-                  onChange={(e) => setFormData({ ...formData, meetLink: e.target.value })}
+                  type="text"
+                  value={formData.attendees}
+                  onChange={(e) => setFormData({ ...formData, attendees: e.target.value })}
                   className="w-full px-3 py-2 border rounded-md dark:bg-zinc-900 dark:border-zinc-700"
-                  placeholder="https://meet.google.com/..."
+                  placeholder="email1@example.com, email2@example.com"
                 />
               </div>
               <div className="flex gap-2 pt-4">
@@ -180,7 +239,17 @@ export default function MeetingsPage() {
                   Cancel
                 </Button>
                 <Button type="submit" disabled={creating} className="flex-1">
-                  {creating ? "Creating..." : "Create Meeting"}
+                  {creating ? (
+                    <>
+                      <svg className="mr-2 h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                      </svg>
+                      Creating...
+                    </>
+                  ) : (
+                    "Create Meeting"
+                  )}
                 </Button>
               </div>
             </form>
