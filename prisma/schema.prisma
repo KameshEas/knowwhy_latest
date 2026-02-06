@@ -69,39 +69,27 @@ model VerificationToken {
 model Decision {
   id               String   @id @default(cuid())
   userId           String   @map("user_id")
-  summary          String
-  problemStatement String?  @map("problem_statement") @db.Text
-  finalRationale   String?  @map("final_rationale") @db.Text
-  participants     String[]
-  confidence       Float    @default(0)
-  source           String   // "slack", "meet", "manual"
-  sourceLink       String?  @map("source_link")
   meetingId        String?  @map("meeting_id")
+  title            String
+  summary          String   @db.Text
+  problemStatement String   @map("problem_statement") @db.Text
+  optionsDiscussed String[] @map("options_discussed")
+  finalDecision    String   @map("final_decision") @db.Text
+  rationale        String   @db.Text
+  actionItems      String[] @map("action_items")
+  confidence       Float    @default(0)
+  source           String   @default("meet") // "slack", "meet", "manual"
+  sourceLink       String?  @map("source_link")
   timestamp        DateTime @default(now())
   createdAt        DateTime @default(now()) @map("created_at")
   updatedAt        DateTime @updatedAt @map("updated_at")
 
-  user    User              @relation(fields: [userId], references: [id], onDelete: Cascade)
-  meeting Meeting?          @relation(fields: [meetingId], references: [id])
-  options DecisionOption[]
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  meeting Meeting? @relation(fields: [meetingId], references: [id])
 
   @@index([userId])
   @@index([timestamp])
   @@map("decisions")
-}
-
-model DecisionOption {
-  id          String  @id @default(cuid())
-  decisionId  String  @map("decision_id")
-  option      String
-  pros        String? @db.Text
-  cons        String? @db.Text
-  isSelected  Boolean @default(false) @map("is_selected")
-
-  decision Decision @relation(fields: [decisionId], references: [id], onDelete: Cascade)
-
-  @@index([decisionId])
-  @@map("decision_options")
 }
 
 model Meeting {

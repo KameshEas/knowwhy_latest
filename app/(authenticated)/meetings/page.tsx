@@ -14,6 +14,7 @@ interface Meeting {
   endTime: string
   meetLink?: string
   status: string
+  transcript?: string
 }
 
 export default function MeetingsPage() {
@@ -26,6 +27,8 @@ export default function MeetingsPage() {
   const [authError, setAuthError] = useState<string | null>(null)
   const [disconnecting, setDisconnecting] = useState(false)
   const [cancellingId, setCancellingId] = useState<string | null>(null)
+  const [analyzingId, setAnalyzingId] = useState<string | null>(null)
+  const [analysisResult, setAnalysisResult] = useState<any>(null)
   const [formData, setFormData] = useState({
     title: "",
     description: "",
@@ -90,6 +93,27 @@ export default function MeetingsPage() {
     }
   }
 
+  const analyzeMeeting = async (meetingId: string) => {
+    setAnalyzingId(meetingId)
+    try {
+      const response = await fetch(`/api/meetings/${meetingId}/analyze`, {
+        method: "POST",
+      })
+      const data = await response.json()
+
+      if (data.success) {
+        setAnalysisResult(data)
+      } else {
+        alert(data.message || "No decision detected in this meeting")
+      }
+    } catch (error) {
+      console.error("Error analyzing meeting:", error)
+      alert("Failed to analyze meeting. Make sure GROQ_API_KEY is set in .env")
+    } finally {
+      setAnalyzingId(null)
+    }
+  }
+
   const disconnectGoogle = async () => {
     setDisconnecting(true)
     try {
@@ -98,7 +122,6 @@ export default function MeetingsPage() {
       })
       const data = await response.json()
       if (data.success) {
-        // Sign out and redirect to login
         await signOut({ callbackUrl: "/login" })
       }
     } catch (error) {
@@ -206,6 +229,62 @@ export default function MeetingsPage() {
               >
                 {disconnecting ? "Reconnecting..." : "Reconnect Google Account"}
               </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Analysis Result Modal */}
+      {analysisResult && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-zinc-950 rounded-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex items-start justify-between mb-4">
+                <div>
+                  <h2 className="text-xl font-semibold text-green-600">Decision Detected! ✓</h2>
+                  <p className="text-sm text-zinc-500 mt-1">
+                    AI analyzed the meeting and found a decision
+                  </p>
+                </div>
+                <button
+                  onClick={() => setAnalysisResult(null)}
+                  className="text-zinc-400 hover:text-zinc-600"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg">
+                  <h3 className="font-medium text-blue-900 dark:text-blue-100 mb-1">{analysisResult.brief.title}</h3>
+                  <p className="text-sm text-blue-800 dark:text-blue-200">{analysisResult.brief.summary}</p>
+                </div>
+
+                <div>
+                  <h3 className="font-medium mb-2">Problem Statement</h3>
+                  <p className="text-sm text-zinc-600 dark:text-zinc-400">{analysisResult.brief.problemStatement}</p>
+                </div>
+
+                <div className="bg-green-50 dark:bg-green-900/20 p-4 rounded-lg">
+                  <h3 className="font-medium text-green-900 dark:text-green-100 mb-1">Final Decision</h3>
+                  <p className="text-sm text-green-800 dark:text-green-200">{analysisResult.brief.finalDecision}</p>
+                </div>
+
+                <div>
+                  <h3 className="font-medium mb-2">Rationale</h3>
+                  <p className="text-sm text-zinc-600 dark:text-zinc-400">{analysisResult.brief.rationale}</p>
+                </div>
+
+                <div className="flex items-center gap-2 text-sm text-zinc-500 pt-4 border-t">
+                  <span>Confidence: {Math.round(analysisResult.decision.confidence * 100)}%</span>
+                  <span>•</span>
+                  <a href="/decisions" className="text-blue-600 hover:text-blue-800">
+                    View in Decision Library →
+                  </a>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -379,7 +458,7 @@ export default function MeetingsPage() {
                       {format(new Date(meeting.startTime), "PPP p")} - {format(new Date(meeting.endTime), "p")}
                     </p>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap justify-end">
                     {meeting.meetLink && (
                       <a
                         href={meeting.meetLink}
@@ -390,6 +469,27 @@ export default function MeetingsPage() {
                         Join Meet
                       </a>
                     )}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => analyzeMeeting(meeting.id)}
+                      disabled={analyzingId === meeting.id || !meeting.transcript}
+                      title={!meeting.transcript ? "No transcript available" : "Analyze for decisions"}
+                    >
+                      {analyzingId === meeting.id ? (
+                        <svg className="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                        </svg>
+                      ) : (
+                        <>
+                          <svg className="mr-1 h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                          </svg>
+                          Analyze
+                        </>
+                      )}
+                    </Button>
                     <Button
                       variant="destructive"
                       size="sm"
