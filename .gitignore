@@ -58,12 +58,4 @@ Thumbs.db
 # Project specific
 /docker-compose.override.yml
 *.log
-FIX_CALLBACK_ERROR.txt
-FIX_OAUTH_ERROR.txt
-GOOGLE_OAUTH_SETUP.md
-LOCAL_DB_SETUP.md
-OAUTH_TROUBLESHOOTING.md
-REDIRECT_URI.txt
-PROGRESS.md
-FEATURES.md
-STATUS.md
+md
