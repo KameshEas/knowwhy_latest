@@ -23,6 +23,8 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           response_type: "code",
         },
       },
+      // Allow linking Google account to existing user with same email
+      allowDangerousEmailAccountLinking: true,
     }),
   ],
   callbacks: {

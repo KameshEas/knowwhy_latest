@@ -19,9 +19,13 @@ export async function POST(request: Request) {
       },
     })
 
+    console.log("Account found:", account ? "Yes" : "No")
+    console.log("Access token exists:", account?.access_token ? "Yes" : "No")
+    console.log("Refresh token exists:", account?.refresh_token ? "Yes" : "No")
+
     if (!account?.access_token) {
       return NextResponse.json(
-        { error: "Google account not connected" },
+        { error: "Google account not connected or token missing. Please sign out and sign back in." },
         { status: 400 }
       )
     }
@@ -36,34 +40,70 @@ export async function POST(request: Request) {
       )
     }
 
-    // Create event in Google Calendar with Google Meet
-    const calendarEvent = await createGoogleCalendarEvent(account.access_token, {
-      summary: title,
-      description,
-      startTime: new Date(startTime).toISOString(),
-      endTime: new Date(endTime).toISOString(),
-      attendees: attendees || [],
-    })
+    try {
+      // Create event in Google Calendar with Google Meet
+      // Pass refresh token and client credentials for automatic token refresh
+      const calendarEvent = await createGoogleCalendarEvent(
+        account.access_token,
+        {
+          summary: title,
+          description,
+          startTime: new Date(startTime).toISOString(),
+          endTime: new Date(endTime).toISOString(),
+          attendees: attendees || [],
+        },
+        account.refresh_token || undefined,
+        process.env.GOOGLE_CLIENT_ID,
+        process.env.GOOGLE_CLIENT_SECRET
+      )
 
-    // Store meeting in database
-    const meeting = await prisma.meeting.create({
-      data: {
-        userId: session.user.id,
-        googleEventId: calendarEvent.id,
-        title: calendarEvent.summary,
-        description: calendarEvent.description,
-        startTime: new Date(calendarEvent.start.dateTime || startTime),
-        endTime: new Date(calendarEvent.end.dateTime || endTime),
+      // Store meeting in database
+      const meeting = await prisma.meeting.create({
+        data: {
+          userId: session.user.id,
+          googleEventId: calendarEvent.id,
+          title: calendarEvent.summary,
+          description: calendarEvent.description,
+          startTime: new Date(calendarEvent.start.dateTime || startTime),
+          endTime: new Date(calendarEvent.end.dateTime || endTime),
+          meetLink: calendarEvent.hangoutLink,
+          status: "pending",
+        },
+      })
+
+      return NextResponse.json({
+        success: true,
+        meeting,
         meetLink: calendarEvent.hangoutLink,
-        status: "pending",
-      },
-    })
-
-    return NextResponse.json({
-      success: true,
-      meeting,
-      meetLink: calendarEvent.hangoutLink,
-    })
+      })
+    } catch (calendarError: any) {
+      console.error("Calendar API Error:", calendarError)
+      
+      // Check for insufficient scopes error
+      if (calendarError.message?.includes("insufficient authentication scopes") || 
+          calendarError.code === 403) {
+        return NextResponse.json(
+          { 
+            error: "Google Calendar permission required. Please sign out and sign back in to grant calendar write access.",
+            code: "INSUFFICIENT_SCOPES"
+          },
+          { status: 403 }
+        )
+      }
+      
+      // Check for invalid credentials
+      if (calendarError.code === 401) {
+        return NextResponse.json(
+          { 
+            error: "Google session expired or invalid. Please sign out and sign back in.",
+            code: "INVALID_CREDENTIALS"
+          },
+          { status: 401 }
+        )
+      }
+      
+      throw calendarError
+    }
   } catch (error) {
     console.error("Error creating meeting:", error)
     return NextResponse.json(

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { format } from "date-fns"
+import { signOut } from "next-auth/react"
 
 interface Meeting {
   id: string
@@ -22,6 +23,9 @@ export default function MeetingsPage() {
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [creating, setCreating] = useState(false)
   const [createdMeetLink, setCreatedMeetLink] = useState<string | null>(null)
+  const [authError, setAuthError] = useState<string | null>(null)
+  const [disconnecting, setDisconnecting] = useState(false)
+  const [cancellingId, setCancellingId] = useState<string | null>(null)
   const [formData, setFormData] = useState({
     title: "",
     description: "",
@@ -61,9 +65,53 @@ export default function MeetingsPage() {
     }
   }
 
+  const cancelMeeting = async (meetingId: string) => {
+    if (!confirm("Are you sure you want to cancel this meeting?")) {
+      return
+    }
+
+    setCancellingId(meetingId)
+    try {
+      const response = await fetch(`/api/meetings/${meetingId}/cancel`, {
+        method: "POST",
+      })
+      const data = await response.json()
+
+      if (data.success) {
+        await fetchMeetings()
+      } else {
+        alert(data.error || "Failed to cancel meeting")
+      }
+    } catch (error) {
+      console.error("Error cancelling meeting:", error)
+      alert("Failed to cancel meeting")
+    } finally {
+      setCancellingId(null)
+    }
+  }
+
+  const disconnectGoogle = async () => {
+    setDisconnecting(true)
+    try {
+      const response = await fetch("/api/auth/disconnect-google", {
+        method: "POST",
+      })
+      const data = await response.json()
+      if (data.success) {
+        // Sign out and redirect to login
+        await signOut({ callbackUrl: "/login" })
+      }
+    } catch (error) {
+      console.error("Error disconnecting Google account:", error)
+    } finally {
+      setDisconnecting(false)
+    }
+  }
+
   const createMeeting = async (e: React.FormEvent) => {
     e.preventDefault()
     setCreating(true)
+    setAuthError(null)
     try {
       const attendees = formData.attendees
         .split(",")
@@ -82,6 +130,15 @@ export default function MeetingsPage() {
         }),
       })
       const data = await response.json()
+
+      if (!response.ok) {
+        if (data.code === "INSUFFICIENT_SCOPES" || data.code === "INVALID_CREDENTIALS") {
+          setAuthError(data.error)
+          setShowCreateModal(false)
+        }
+        throw new Error(data.error)
+      }
+
       if (data.success) {
         setCreatedMeetLink(data.meetLink)
         setShowCreateModal(false)
@@ -130,6 +187,29 @@ export default function MeetingsPage() {
           </Button>
         </div>
       </div>
+
+      {/* Auth Error Banner */}
+      {authError && (
+        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+          <div className="flex items-start gap-3">
+            <svg className="w-5 h-5 text-yellow-600 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+            <div className="flex-1">
+              <h3 className="font-medium text-yellow-800">Google Calendar Permission Required</h3>
+              <p className="text-sm text-yellow-700 mt-1">{authError}</p>
+              <Button
+                onClick={disconnectGoogle}
+                disabled={disconnecting}
+                variant="outline"
+                className="mt-3 bg-white"
+              >
+                {disconnecting ? "Reconnecting..." : "Reconnect Google Account"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Success Modal with Meet Link */}
       {createdMeetLink && (
@@ -310,6 +390,21 @@ export default function MeetingsPage() {
                         Join Meet
                       </a>
                     )}
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => cancelMeeting(meeting.id)}
+                      disabled={cancellingId === meeting.id}
+                    >
+                      {cancellingId === meeting.id ? (
+                        <svg className="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                        </svg>
+                      ) : (
+                        "Cancel"
+                      )}
+                    </Button>
                     <span
                       className={`px-2 py-1 rounded-full text-xs ${
                         meeting.status === "completed"
