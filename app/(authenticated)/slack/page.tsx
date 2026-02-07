@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import Link from "next/link"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -162,9 +163,11 @@ export default function SlackChannelsPage() {
                     <Users className="h-4 w-4" />
                     {channel.memberCount} members
                   </div>
-                  <Button variant="ghost" size="sm">
-                    View <ArrowRight className="ml-1 h-4 w-4" />
-                  </Button>
+                  <Link href={`/slack/${channel.id}`}>
+                    <Button variant="ghost" size="sm">
+                      View Messages <ArrowRight className="ml-1 h-4 w-4" />
+                    </Button>
+                  </Link>
                 </div>
               </CardContent>
             </Card>
