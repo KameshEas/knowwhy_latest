@@ -4,6 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import { format } from "date-fns"
+import { CheckCircle, Users, Zap, Video, FileText } from "lucide-react"
 
 export default async function DashboardPage() {
   const session = await auth()
@@ -50,9 +51,7 @@ export default async function DashboardPage() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Decisions</CardTitle>
-            <svg className="h-4 w-4 text-zinc-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
+            <CheckCircle className="h-4 w-4 text-zinc-500" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{decisionCount}</div>
@@ -63,9 +62,7 @@ export default async function DashboardPage() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Meetings</CardTitle>
-            <svg className="h-4 w-4 text-zinc-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-            </svg>
+            <Users className="h-4 w-4 text-zinc-500" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{meetingCount}</div>
@@ -76,14 +73,12 @@ export default async function DashboardPage() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">AI Confidence</CardTitle>
-            <svg className="h-4 w-4 text-zinc-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-            </svg>
+            <Zap className="h-4 w-4 text-zinc-500" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
               {recentDecisions.length > 0 
-                ? `${Math.round(recentDecisions.reduce((acc, d) => acc + (d.confidence * 100), 0) / recentDecisions.length)}%`
+                ? `${Math.round(recentDecisions.reduce((acc: number, d: { confidence: number }) => acc + (d.confidence * 100), 0) / recentDecisions.length)}%`
                 : "N/A"
               }
             </div>
@@ -101,17 +96,13 @@ export default async function DashboardPage() {
           <CardContent className="space-y-2">
             <Link href="/meetings">
               <Button className="w-full justify-start" variant="outline">
-                <svg className="mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                </svg>
+                <Video className="mr-2 h-4 w-4" />
                 Connect Google Meet
               </Button>
             </Link>
             <Link href="/decisions">
               <Button className="w-full justify-start" variant="outline">
-                <svg className="mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                </svg>
+                <FileText className="mr-2 h-4 w-4" />
                 View Decisions
               </Button>
             </Link>
@@ -132,7 +123,7 @@ export default async function DashboardPage() {
               </div>
             ) : (
               <div className="space-y-3">
-                {recentDecisions.map((decision) => (
+                {recentDecisions.map((decision: { id: string; title: string; meeting?: { title?: string }; createdAt: Date; confidence: number }) => (
                   <div key={decision.id} className="border-b last:border-0 pb-3 last:pb-0">
                     <p className="text-sm font-medium truncate">{decision.title}</p>
                     <div className="flex items-center gap-2 mt-1">

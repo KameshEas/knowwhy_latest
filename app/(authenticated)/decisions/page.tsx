@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { format } from "date-fns"
+import { FileText, X, ChevronRight, Loader2 } from "lucide-react"
 
 interface Decision {
   id: string
@@ -76,9 +77,7 @@ export default function DecisionsPage() {
                   onClick={() => setSelectedDecision(null)}
                   className="text-zinc-400 hover:text-zinc-600"
                 >
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
+                  <X className="w-6 h-6" />
                 </button>
               </div>
 
@@ -166,17 +165,12 @@ export default function DecisionsPage() {
         <CardContent>
           {loading ? (
             <div className="text-center py-8 text-zinc-500">
-              <svg className="mx-auto h-8 w-8 animate-spin text-zinc-400" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-              </svg>
+              <Loader2 className="mx-auto h-8 w-8 animate-spin text-zinc-400" />
               <p className="mt-2">Loading decisions...</p>
             </div>
           ) : decisions.length === 0 ? (
             <div className="text-center py-12 text-zinc-500">
-              <svg className="mx-auto h-12 w-12 text-zinc-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-              </svg>
+              <FileText className="mx-auto h-12 w-12 text-zinc-300 mb-4" />
               <p className="text-lg font-medium">No decisions detected yet</p>
               <p className="text-sm mt-1 max-w-md mx-auto">
                 Go to your Meetings page and analyze a meeting transcript to detect decisions automatically with AI.
@@ -216,9 +210,7 @@ export default function DecisionsPage() {
                       >
                         {Math.round(decision.confidence * 100)}% confidence
                       </span>
-                      <svg className="w-5 h-5 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                      </svg>
+                      <ChevronRight className="w-5 h-5 text-zinc-400" />
                     </div>
                   </div>
                 </div>

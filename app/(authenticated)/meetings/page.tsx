@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { format } from "date-fns"
 import { signOut } from "next-auth/react"
+import { Plus, RefreshCw, Loader2, X, CheckCircle, AlertTriangle, Lightbulb, Trash2, ExternalLink, Video } from "lucide-react"
 
 interface Meeting {
   id: string
@@ -190,22 +191,20 @@ export default function MeetingsPage() {
         </div>
         <div className="flex gap-2">
           <Button onClick={() => setShowCreateModal(true)} variant="outline">
-            <svg className="mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
+            <Plus className="mr-2 h-4 w-4" />
             Create Meeting
           </Button>
           <Button onClick={syncMeetings} disabled={syncing}>
             {syncing ? (
               <>
-                <svg className="mr-2 h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                </svg>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 Syncing...
               </>
             ) : (
-              "Sync Meetings"
+              <>
+                <RefreshCw className="mr-2 h-4 w-4" />
+                Sync Meetings
+              </>
             )}
           </Button>
         </div>
@@ -215,9 +214,7 @@ export default function MeetingsPage() {
       {authError && (
         <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
           <div className="flex items-start gap-3">
-            <svg className="w-5 h-5 text-yellow-600 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-            </svg>
+            <AlertTriangle className="w-5 h-5 text-yellow-600 mt-0.5" />
             <div className="flex-1">
               <h3 className="font-medium text-yellow-800">Google Calendar Permission Required</h3>
               <p className="text-sm text-yellow-700 mt-1">{authError}</p>
@@ -250,9 +247,7 @@ export default function MeetingsPage() {
                   onClick={() => setAnalysisResult(null)}
                   className="text-zinc-400 hover:text-zinc-600"
                 >
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
+                  <X className="w-6 h-6" />
                 </button>
               </div>
 
@@ -296,9 +291,7 @@ export default function MeetingsPage() {
           <div className="bg-white dark:bg-zinc-950 rounded-lg p-6 w-full max-w-md">
             <div className="text-center">
               <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                </svg>
+                <CheckCircle className="w-6 h-6 text-green-600" />
               </div>
               <h2 className="text-xl font-semibold mb-2">Meeting Created!</h2>
               <p className="text-zinc-500 mb-4">Your Google Meet has been created and added to your calendar.</p>
@@ -328,6 +321,7 @@ export default function MeetingsPage() {
                   }}
                   className="flex-1"
                 >
+                  <ExternalLink className="mr-2 h-4 w-4" />
                   Join Now
                 </Button>
               </div>
@@ -400,10 +394,7 @@ export default function MeetingsPage() {
                 <Button type="submit" disabled={creating} className="flex-1">
                   {creating ? (
                     <>
-                      <svg className="mr-2 h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                      </svg>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                       Creating...
                     </>
                   ) : (
@@ -426,17 +417,12 @@ export default function MeetingsPage() {
         <CardContent>
           {loading ? (
             <div className="text-center py-8 text-zinc-500">
-              <svg className="mx-auto h-8 w-8 animate-spin text-zinc-400" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-              </svg>
+              <Loader2 className="mx-auto h-8 w-8 animate-spin text-zinc-400" />
               <p className="mt-2">Loading meetings...</p>
             </div>
           ) : meetings.length === 0 ? (
             <div className="text-center py-12 text-zinc-500">
-              <svg className="mx-auto h-12 w-12 text-zinc-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-              </svg>
+              <Video className="mx-auto h-12 w-12 text-zinc-300 mb-4" />
               <p className="text-lg font-medium">No meetings connected</p>
               <p className="text-sm mt-1">
                 Click "Sync Meetings" to fetch your Google Calendar events or "Create Meeting" to add manually.
@@ -464,9 +450,10 @@ export default function MeetingsPage() {
                         href={meeting.meetLink}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+                        className="text-blue-600 hover:text-blue-800 text-sm font-medium flex items-center"
                       >
-                        Join Meet
+                        <ExternalLink className="mr-1 h-3 w-3" />
+                        Join
                       </a>
                     )}
                     <Button
@@ -477,15 +464,10 @@ export default function MeetingsPage() {
                       title={!meeting.transcript ? "No transcript available" : "Analyze for decisions"}
                     >
                       {analyzingId === meeting.id ? (
-                        <svg className="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                        </svg>
+                        <Loader2 className="h-4 w-4 animate-spin" />
                       ) : (
                         <>
-                          <svg className="mr-1 h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-                          </svg>
+                          <Lightbulb className="mr-1 h-3 w-3" />
                           Analyze
                         </>
                       )}
@@ -497,12 +479,9 @@ export default function MeetingsPage() {
                       disabled={cancellingId === meeting.id}
                     >
                       {cancellingId === meeting.id ? (
-                        <svg className="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                        </svg>
+                        <Loader2 className="h-4 w-4 animate-spin" />
                       ) : (
-                        "Cancel"
+                        <Trash2 className="h-4 w-4" />
                       )}
                     </Button>
                     <span
