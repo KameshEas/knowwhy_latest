@@ -49,10 +49,12 @@ model User {
   createdAt     DateTime  @default(now()) @map("created_at")
   updatedAt     DateTime  @updatedAt @map("updated_at")
 
-  accounts      Account[]
-  sessions      Session[]
-  decisions     Decision[]
-  meetings      Meeting[]
+  accounts           Account[]
+  sessions           Session[]
+  decisions          Decision[]
+  meetings           Meeting[]
+  slackIntegration   SlackIntegration?
+  gitlabIntegration  GitLabIntegration?
 
   @@map("users")
 }
@@ -64,6 +66,40 @@ model VerificationToken {
 
   @@unique([identifier, token])
   @@map("verificationtokens")
+}
+
+model SlackIntegration {
+  id            String   @id @default(cuid())
+  userId        String   @unique @map("user_id")
+  accessToken   String   @map("access_token") @db.Text
+  refreshToken  String?  @map("refresh_token") @db.Text
+  teamId        String   @map("team_id")
+  teamName      String   @map("team_name")
+  userSlackId   String   @map("user_slack_id")
+  scope         String
+  connectedAt   DateTime @default(now()) @map("connected_at")
+  lastSyncAt    DateTime? @map("last_sync_at")
+  
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("slack_integrations")
+}
+
+model GitLabIntegration {
+  id            String   @id @default(cuid())
+  userId        String   @unique @map("user_id")
+  accessToken   String   @map("access_token") @db.Text
+  gitlabUrl     String   @default("https://gitlab.com") @map("gitlab_url")
+  username      String
+  userGitlabId  Int?     @map("user_gitlab_id")
+  connectedAt   DateTime @default(now()) @map("connected_at")
+  lastSyncAt    DateTime? @map("last_sync_at")
+  
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("gitlab_integrations")
 }
 
 model Decision {
@@ -78,7 +114,7 @@ model Decision {
   rationale        String   @db.Text
   actionItems      String[] @map("action_items")
   confidence       Float    @default(0)
-  source           String   @default("meet") // "slack", "meet", "manual"
+  source           String   @default("meet") // "slack", "meet", "gitlab", "manual"
   sourceLink       String?  @map("source_link")
   timestamp        DateTime @default(now())
   createdAt        DateTime @default(now()) @map("created_at")
