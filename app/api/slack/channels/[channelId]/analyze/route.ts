@@ -6,7 +6,7 @@ import { NextResponse } from "next/server"
 
 export async function POST(
   request: Request,
-  { params }: { params: { channelId: string } }
+  { params }: { params: Promise<{ channelId: string }> }
 ) {
   try {
     const session = await auth()
@@ -15,12 +15,13 @@ export async function POST(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
+    const { channelId } = await params
     const { limit = 50 } = await request.json()
 
     // Fetch messages from Slack
     const messages = await getSlackChannelMessages(
       session.user.id,
-      params.channelId,
+      channelId,
       limit
     )
 
@@ -74,7 +75,7 @@ export async function POST(
         actionItems: brief.actionItems,
         confidence: detection.confidence,
         source: "slack",
-        sourceLink: `https://slack.com/app_redirect?channel=${params.channelId}`,
+        sourceLink: `https://slack.com/app_redirect?channel=${channelId}`,
       },
     })
 

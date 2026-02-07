@@ -4,7 +4,7 @@ import { NextResponse } from "next/server"
 
 export async function GET(
   request: Request,
-  { params }: { params: { channelId: string } }
+  { params }: { params: Promise<{ channelId: string }> }
 ) {
   try {
     const session = await auth()
@@ -13,12 +13,13 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
+    const { channelId } = await params
     const { searchParams } = new URL(request.url)
     const limit = parseInt(searchParams.get("limit") || "50")
 
     const messages = await getSlackChannelMessages(
       session.user.id,
-      params.channelId,
+      channelId,
       limit
     )
 
