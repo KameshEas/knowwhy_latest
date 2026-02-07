@@ -8,7 +8,7 @@ import { CheckCircle, Users, Zap, Video, FileText } from "lucide-react"
 
 export default async function DashboardPage() {
   const session = await auth()
-  
+
   if (!session?.user?.id) {
     return null
   }
@@ -77,8 +77,8 @@ export default async function DashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {recentDecisions.length > 0 
-                ? `${Math.round(recentDecisions.reduce((acc: number, d: { confidence: number }) => acc + (d.confidence * 100), 0) / recentDecisions.length)}%`
+              {recentDecisions.length > 0
+                ? `${Math.round(recentDecisions.reduce((acc, d) => acc + (d.confidence * 100), 0) / recentDecisions.length)}%`
                 : "N/A"
               }
             </div>
@@ -123,7 +123,7 @@ export default async function DashboardPage() {
               </div>
             ) : (
               <div className="space-y-3">
-                {recentDecisions.map((decision: { id: string; title: string; meeting?: { title?: string }; createdAt: Date; confidence: number }) => (
+                {recentDecisions.map((decision) => (
                   <div key={decision.id} className="border-b last:border-0 pb-3 last:pb-0">
                     <p className="text-sm font-medium truncate">{decision.title}</p>
                     <div className="flex items-center gap-2 mt-1">
@@ -139,8 +139,8 @@ export default async function DashboardPage() {
                         decision.confidence >= 0.8
                           ? "bg-green-100 text-green-700"
                           : decision.confidence >= 0.6
-                          ? "bg-yellow-100 text-yellow-700"
-                          : "bg-gray-100 text-gray-700"
+                            ? "bg-yellow-100 text-yellow-700"
+                            : "bg-gray-100 text-gray-700"
                       }`}>
                         {Math.round(decision.confidence * 100)}%
                       </span>

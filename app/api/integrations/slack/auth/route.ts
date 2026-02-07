@@ -10,7 +10,7 @@ export async function GET() {
     }
 
     const clientId = process.env.SLACK_CLIENT_ID
-    const redirectUri = process.env.SLACK_REDIRECT_URI
+    const redirectUri = process.env.SLACK_OAUTH_REDIRECT_URI
 
     if (!clientId || !redirectUri) {
       return NextResponse.json(
