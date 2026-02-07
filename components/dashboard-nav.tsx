@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
-import { LayoutDashboard, FileText, Video, Search, Settings } from "lucide-react"
+import { LayoutDashboard, FileText, Video, Search, Settings, MessageSquare, GitBranch } from "lucide-react"
 
 const navItems = [
   {
@@ -25,6 +25,16 @@ const navItems = [
     title: "Meetings",
     href: "/meetings",
     icon: Video,
+  },
+  {
+    title: "Slack",
+    href: "/slack",
+    icon: MessageSquare,
+  },
+  {
+    title: "GitLab",
+    href: "/gitlab",
+    icon: GitBranch,
   },
   {
     title: "Settings",

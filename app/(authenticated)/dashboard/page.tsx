@@ -4,7 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import { format } from "date-fns"
-import { CheckCircle, Users, Zap, Video, FileText } from "lucide-react"
+import { CheckCircle, Users, Zap, Video, FileText, MessageSquare, GitBranch } from "lucide-react"
 
 export default async function DashboardPage() {
   const session = await auth()
@@ -14,7 +14,7 @@ export default async function DashboardPage() {
   }
 
   // Fetch actual counts from database
-  const [meetingCount, decisionCount, recentDecisions] = await Promise.all([
+  const [meetingCount, decisionCount, recentDecisions, slackIntegration, gitlabIntegration] = await Promise.all([
     prisma.meeting.count({
       where: { userId: session.user.id }
     }),
@@ -33,6 +33,12 @@ export default async function DashboardPage() {
           }
         }
       }
+    }),
+    prisma.slackIntegration.findUnique({
+      where: { userId: session.user.id }
+    }),
+    prisma.gitLabIntegration.findUnique({
+      where: { userId: session.user.id }
     })
   ])
 
@@ -87,6 +93,68 @@ export default async function DashboardPage() {
         </Card>
       </div>
 
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <Link href="/meetings">
+          <Card className="hover:shadow-md transition-shadow cursor-pointer h-full">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Meetings</CardTitle>
+              <Video className="h-4 w-4 text-zinc-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{meetingCount}</div>
+              <p className="text-xs text-zinc-500">Connected</p>
+            </CardContent>
+          </Card>
+        </Link>
+
+        <Link href="/decisions">
+          <Card className="hover:shadow-md transition-shadow cursor-pointer h-full">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Decisions</CardTitle>
+              <FileText className="h-4 w-4 text-zinc-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{decisionCount}</div>
+              <p className="text-xs text-zinc-500">Captured</p>
+            </CardContent>
+          </Card>
+        </Link>
+
+        <Link href="/slack">
+          <Card className="hover:shadow-md transition-shadow cursor-pointer h-full">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Slack</CardTitle>
+              <MessageSquare className="h-4 w-4 text-zinc-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">
+                {slackIntegration ? "Connected" : "Not Connected"}
+              </div>
+              <p className="text-xs text-zinc-500">
+                {slackIntegration ? "View channels" : "Connect workspace"}
+              </p>
+            </CardContent>
+          </Card>
+        </Link>
+
+        <Link href="/gitlab">
+          <Card className="hover:shadow-md transition-shadow cursor-pointer h-full">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">GitLab</CardTitle>
+              <GitBranch className="h-4 w-4 text-zinc-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">
+                {gitlabIntegration ? "Connected" : "Not Connected"}
+              </div>
+              <p className="text-xs text-zinc-500">
+                {gitlabIntegration ? "View projects" : "Connect account"}
+              </p>
+            </CardContent>
+          </Card>
+        </Link>
+      </div>
+
       <div className="grid gap-4 md:grid-cols-2">
         <Card>
           <CardHeader>
@@ -98,6 +166,18 @@ export default async function DashboardPage() {
               <Button className="w-full justify-start" variant="outline">
                 <Video className="mr-2 h-4 w-4" />
                 Connect Google Meet
+              </Button>
+            </Link>
+            <Link href="/slack">
+              <Button className="w-full justify-start" variant="outline">
+                <MessageSquare className="mr-2 h-4 w-4" />
+                Browse Slack Channels
+              </Button>
+            </Link>
+            <Link href="/gitlab">
+              <Button className="w-full justify-start" variant="outline">
+                <GitBranch className="mr-2 h-4 w-4" />
+                Browse GitLab Projects
               </Button>
             </Link>
             <Link href="/decisions">
