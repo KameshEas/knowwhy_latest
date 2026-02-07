@@ -27,7 +27,7 @@ export async function GET() {
       })
     ).toString("base64")
 
-    // User scopes only (no bot scopes - don't require bot user)
+    // Bot scopes - requires bot user to be configured in Slack app
     const scopes = ["channels:history", "groups:history", "users:read"]
 
     const authUrl = new URL("https://slack.com/oauth/v2/authorize")
