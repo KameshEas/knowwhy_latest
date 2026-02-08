@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { format } from "date-fns"
 import { FileText, X, ChevronRight, Loader2 } from "lucide-react"
+import { EmptyState } from "@/components/empty-state"
 
 interface Decision {
   id: string
@@ -46,6 +47,45 @@ export default function DecisionsPage() {
     }
   }
 
+  const loadDemoData = () => {
+    const demoDecisions: Decision[] = [
+      {
+        id: "demo-1",
+        title: "Migrate to PostgreSQL from MongoDB",
+        summary: "The team decided to migrate the main database from MongoDB to PostgreSQL for better relational data support and ACID compliance.",
+        problemStatement: "Current MongoDB setup is causing data consistency issues with complex relationships between entities.",
+        optionsDiscussed: ["Stay with MongoDB and add validation", "Migrate to PostgreSQL", "Use both databases (polyglot persistence)"],
+        finalDecision: "Migrate to PostgreSQL with a phased approach over 2 months",
+        rationale: "PostgreSQL provides better ACID guarantees, mature tooling, and team has more experience with SQL databases.",
+        actionItems: ["Create migration plan", "Set up PostgreSQL instance", "Write data migration scripts", "Update application layer"],
+        confidence: 0.92,
+        source: "meeting",
+        timestamp: new Date().toISOString(),
+        createdAt: new Date().toISOString(),
+        meeting: {
+          id: "demo-meeting",
+          title: "Architecture Review - Database Migration",
+          startTime: new Date().toISOString(),
+        }
+      },
+      {
+        id: "demo-2",
+        title: "Adopt TypeScript for Frontend",
+        summary: "Team agreed to migrate the React frontend to TypeScript for better type safety and developer experience.",
+        problemStatement: "Runtime errors in production due to type mismatches and lack of IDE support slowing development.",
+        optionsDiscussed: ["Keep JavaScript with JSDoc", "Migrate to TypeScript gradually", "Full TypeScript rewrite"],
+        finalDecision: "Gradual migration - new features in TypeScript, migrate existing code incrementally",
+        rationale: "Gradual approach minimizes risk while getting immediate benefits on new code. Team already familiar with TypeScript.",
+        actionItems: ["Set up TypeScript configuration", "Update build pipeline", "Train team on best practices", "Migrate utils first"],
+        confidence: 0.88,
+        source: "slack",
+        timestamp: new Date().toISOString(),
+        createdAt: new Date(Date.now() - 86400000).toISOString(),
+      },
+    ]
+    setDecisions(demoDecisions)
+  }
+
   useEffect(() => {
     fetchDecisions()
   }, [])
@@ -54,7 +94,7 @@ export default function DecisionsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Decisions</h1>
+          <h1 className="text-3xl font-bold tracking-tight text-blue-900 dark:text-blue-100">Decisions</h1>
           <p className="text-zinc-500 dark:text-zinc-400 mt-2">
             AI-detected decisions from your meetings and conversations.
           </p>
@@ -68,7 +108,7 @@ export default function DecisionsPage() {
             <div className="p-6">
               <div className="flex items-start justify-between mb-4">
                 <div>
-                  <h2 className="text-xl font-semibold">{selectedDecision.title}</h2>
+                  <h2 className="text-xl font-semibold text-blue-900 dark:text-blue-100">{selectedDecision.title}</h2>
                   <p className="text-sm text-zinc-500 mt-1">
                     Detected on {format(new Date(selectedDecision.createdAt), "PPP")}
                   </p>
@@ -155,38 +195,34 @@ export default function DecisionsPage() {
         </div>
       )}
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Decision Library</CardTitle>
-          <CardDescription>
-            AI-analyzed decisions from your meetings
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {loading ? (
-            <div className="text-center py-8 text-zinc-500">
-              <Loader2 className="mx-auto h-8 w-8 animate-spin text-zinc-400" />
-              <p className="mt-2">Loading decisions...</p>
-            </div>
-          ) : decisions.length === 0 ? (
-            <div className="text-center py-12 text-zinc-500">
-              <FileText className="mx-auto h-12 w-12 text-zinc-300 mb-4" />
-              <p className="text-lg font-medium">No decisions detected yet</p>
-              <p className="text-sm mt-1 max-w-md mx-auto">
-                Go to your Meetings page and analyze a meeting transcript to detect decisions automatically with AI.
-              </p>
-            </div>
-          ) : (
+      {loading ? (
+        <Card>
+          <CardContent className="py-12 text-center">
+            <Loader2 className="mx-auto h-8 w-8 animate-spin text-blue-400" />
+            <p className="mt-4 text-zinc-500">Loading decisions...</p>
+          </CardContent>
+        </Card>
+      ) : decisions.length === 0 ? (
+        <EmptyState type="decisions" onDemoData={loadDemoData} />
+      ) : (
+        <Card className="border-blue-100 dark:border-blue-900">
+          <CardHeader>
+            <CardTitle className="text-blue-900 dark:text-blue-100">Decision Library</CardTitle>
+            <CardDescription>
+              AI-analyzed decisions from your meetings
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
             <div className="space-y-4">
               {decisions.map((decision) => (
                 <div
                   key={decision.id}
-                  className="p-4 border rounded-lg hover:bg-zinc-50 dark:hover:bg-zinc-900 cursor-pointer transition-colors"
+                  className="p-4 border border-zinc-200 dark:border-zinc-800 rounded-lg hover:border-blue-300 dark:hover:border-blue-700 hover:bg-blue-50/50 dark:hover:bg-blue-900/10 cursor-pointer transition-all"
                   onClick={() => setSelectedDecision(decision)}
                 >
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
-                      <h3 className="font-medium">{decision.title}</h3>
+                      <h3 className="font-medium text-blue-900 dark:text-blue-100">{decision.title}</h3>
                       <p className="text-sm text-zinc-500 mt-1 line-clamp-2">{decision.summary}</p>
                       <div className="flex items-center gap-2 mt-2 text-xs text-zinc-400">
                         <span>{format(new Date(decision.createdAt), "PPP")}</span>
@@ -200,12 +236,12 @@ export default function DecisionsPage() {
                     </div>
                     <div className="flex items-center gap-2">
                       <span
-                        className={`px-2 py-1 rounded-full text-xs ${
+                        className={`px-2 py-1 rounded-full text-xs font-medium ${
                           decision.confidence >= 0.8
-                            ? "bg-green-100 text-green-800"
+                            ? "bg-blue-100 text-blue-800 border border-blue-200"
                             : decision.confidence >= 0.6
-                            ? "bg-yellow-100 text-yellow-800"
-                            : "bg-gray-100 text-gray-800"
+                            ? "bg-yellow-100 text-yellow-800 border border-yellow-200"
+                            : "bg-gray-100 text-gray-800 border border-gray-200"
                         }`}
                       >
                         {Math.round(decision.confidence * 100)}% confidence
@@ -216,9 +252,9 @@ export default function DecisionsPage() {
                 </div>
               ))}
             </div>
-          )}
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      )}
     </div>
   )
 }
