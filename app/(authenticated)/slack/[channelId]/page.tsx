@@ -15,7 +15,9 @@ import {
   CheckCircle,
   AlertCircle,
   Sparkles,
-  Clock
+  Clock,
+  CheckCircle2,
+  Calendar
 } from "lucide-react"
 import { toast } from "sonner"
 import Link from "next/link"
@@ -46,6 +48,15 @@ interface AnalysisResult {
   message?: string
 }
 
+interface ExistingDecision {
+  id: string
+  title: string
+  summary: string
+  confidence: number
+  createdAt: string
+  isRecent: boolean
+}
+
 export default function SlackChannelDetailPage() {
   const params = useParams()
   const channelId = params.channelId as string
@@ -55,6 +66,8 @@ export default function SlackChannelDetailPage() {
   const [analyzing, setAnalyzing] = useState(false)
   const [analysisProgress, setAnalysisProgress] = useState(0)
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null)
+  const [existingDecision, setExistingDecision] = useState<ExistingDecision | null>(null)
+  const [checkingExisting, setCheckingExisting] = useState(true)
 
   const fetchMessages = async () => {
     setLoading(true)
@@ -75,7 +88,46 @@ export default function SlackChannelDetailPage() {
     }
   }
 
+  const checkExistingDecision = async () => {
+    setCheckingExisting(true)
+    try {
+      const response = await fetch(`/api/decisions?source=slack`)
+      const data = await response.json()
+      
+      if (data.success && data.decisions) {
+        // Find decision for this channel
+        const channelDecision = data.decisions.find((d: any) => 
+          d.sourceLink?.includes(channelId)
+        )
+        
+        if (channelDecision) {
+          const decisionDate = new Date(channelDecision.createdAt)
+          const hoursSince = (Date.now() - decisionDate.getTime()) / (1000 * 60 * 60)
+          
+          setExistingDecision({
+            id: channelDecision.id,
+            title: channelDecision.title,
+            summary: channelDecision.summary,
+            confidence: channelDecision.confidence,
+            createdAt: channelDecision.createdAt,
+            isRecent: hoursSince < 24
+          })
+        }
+      }
+    } catch (error) {
+      console.error("Failed to check existing decision:", error)
+    } finally {
+      setCheckingExisting(false)
+    }
+  }
+
   const analyzeMessages = async () => {
+    // Don't analyze if already recent
+    if (existingDecision?.isRecent) {
+      toast.info("This channel was already analyzed recently. Check the decisions page.")
+      return
+    }
+
     setAnalyzing(true)
     setAnalysisResult(null)
     setAnalysisProgress(0)
@@ -104,6 +156,8 @@ export default function SlackChannelDetailPage() {
         setAnalysisResult(data)
         if (data.detected) {
           toast.success(`🎉 Decision detected! "${data.decision?.title}"`)
+          // Refresh existing decision check
+          await checkExistingDecision()
         } else {
           toast.info(data.message || "No decisions detected in this conversation")
         }
@@ -124,11 +178,24 @@ export default function SlackChannelDetailPage() {
   useEffect(() => {
     if (channelId) {
       fetchMessages()
+      checkExistingDecision()
     }
   }, [channelId])
 
   const formatTimestamp = (timestamp: string) => {
     return new Date(timestamp).toLocaleString()
+  }
+
+  const formatRelativeTime = (dateString: string) => {
+    const date = new Date(dateString)
+    const now = new Date()
+    const diffMs = now.getTime() - date.getTime()
+    const diffHrs = Math.round(diffMs / (1000 * 60 * 60))
+    const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24))
+    
+    if (diffHrs < 1) return "just now"
+    if (diffHrs < 24) return `${diffHrs} hour${diffHrs > 1 ? 's' : ''} ago`
+    return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`
   }
 
   return (
@@ -163,13 +230,21 @@ export default function SlackChannelDetailPage() {
           </Button>
           <Button
             onClick={analyzeMessages}
-            disabled={analyzing || messages.length === 0 || loading}
-            className="bg-purple-600 hover:bg-purple-700 text-white"
+            disabled={analyzing || messages.length === 0 || loading || existingDecision?.isRecent}
+            className={existingDecision?.isRecent 
+              ? "bg-green-600 hover:bg-green-700 text-white" 
+              : "bg-purple-600 hover:bg-purple-700 text-white"
+            }
           >
             {analyzing ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 Analyzing...
+              </>
+            ) : existingDecision?.isRecent ? (
+              <>
+                <CheckCircle2 className="mr-2 h-4 w-4" />
+                Up to Date
               </>
             ) : (
               <>
@@ -180,6 +255,68 @@ export default function SlackChannelDetailPage() {
           </Button>
         </div>
       </div>
+
+      {/* Existing Decision Alert */}
+      {existingDecision && (
+        <Card className={existingDecision.isRecent 
+          ? "border-green-500 bg-green-50/50" 
+          : "border-blue-500 bg-blue-50/50"
+        }>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                {existingDecision.isRecent ? (
+                  <CheckCircle2 className="h-5 w-5 text-green-600" />
+                ) : (
+                  <Calendar className="h-5 w-5 text-blue-600" />
+                )}
+                <CardTitle className={existingDecision.isRecent 
+                  ? "text-green-900 dark:text-green-100" 
+                  : "text-blue-900 dark:text-blue-100"
+                }>
+                  {existingDecision.isRecent 
+                    ? "✅ Already Analyzed (Up to Date)" 
+                    : "📋 Previously Analyzed"
+                  }
+                </CardTitle>
+              </div>
+              <Badge variant={existingDecision.isRecent ? "default" : "secondary"} 
+                className={existingDecision.isRecent ? "bg-green-100 text-green-700" : ""}>
+                {formatRelativeTime(existingDecision.createdAt)}
+              </Badge>
+            </div>
+            <CardDescription className={existingDecision.isRecent 
+              ? "text-green-700 dark:text-green-300" 
+              : "text-blue-700 dark:text-blue-300"
+            }>
+              {existingDecision.isRecent 
+                ? "This channel has been analyzed recently. View the decision details below or check the Decisions page."
+                : "This channel was analyzed before. You can re-analyze to check for new decisions."
+              }
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              <p className="font-semibold text-lg text-gray-900 dark:text-gray-100">
+                {existingDecision.title}
+              </p>
+              <p className="text-sm text-gray-600 dark:text-gray-400 line-clamp-2">
+                {existingDecision.summary}
+              </p>
+              <div className="flex items-center gap-4 pt-2">
+                <span className="text-sm text-gray-500">
+                  Confidence: {Math.round(existingDecision.confidence * 100)}%
+                </span>
+                <Link href="/decisions">
+                  <Button variant="link" className="p-0 h-auto text-purple-600 hover:text-purple-700">
+                    View All Decisions →
+                  </Button>
+                </Link>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* AI Analysis Progress */}
       {analyzing && (

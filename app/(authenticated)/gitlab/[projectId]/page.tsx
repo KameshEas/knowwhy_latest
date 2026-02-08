@@ -22,7 +22,9 @@ import {
   AlertCircle,
   Sparkles,
   Clock,
-  Brain
+  Brain,
+  CheckCircle2,
+  FileText
 } from "lucide-react"
 import { toast } from "sonner"
 import { format } from "date-fns"
@@ -63,6 +65,15 @@ interface AnalysisResult {
   message?: string
 }
 
+interface ExistingDecision {
+  id: string
+  title: string
+  summary: string
+  confidence: number
+  createdAt: string
+  isRecent: boolean
+}
+
 export default function GitLabProjectDetailPage() {
   const params = useParams()
   const projectId = params.projectId as string
@@ -72,6 +83,8 @@ export default function GitLabProjectDetailPage() {
   const [analyzingIssueId, setAnalyzingIssueId] = useState<number | null>(null)
   const [analysisProgress, setAnalysisProgress] = useState(0)
   const [analysisResults, setAnalysisResults] = useState<Record<number, AnalysisResult>>({})
+  const [existingDecisions, setExistingDecisions] = useState<Record<number, ExistingDecision>>({})
+  const [checkingExisting, setCheckingExisting] = useState(true)
 
   const fetchIssues = async () => {
     setLoading(true)
@@ -91,7 +104,51 @@ export default function GitLabProjectDetailPage() {
     }
   }
 
+  const checkExistingDecisions = async () => {
+    setCheckingExisting(true)
+    try {
+      const response = await fetch(`/api/decisions?source=gitlab`)
+      const data = await response.json()
+      
+      if (data.success && data.decisions) {
+        const decisionsMap: Record<number, ExistingDecision> = {}
+        
+        data.decisions.forEach((decision: any) => {
+          // Extract issue IID from sourceLink
+          // Format: https://gitlab.com/.../issues/IID
+          const match = decision.sourceLink?.match(/issues\/(\d+)$/)
+          if (match) {
+            const issueIid = parseInt(match[1])
+            const decisionDate = new Date(decision.createdAt)
+            const hoursSince = (Date.now() - decisionDate.getTime()) / (1000 * 60 * 60)
+            
+            decisionsMap[issueIid] = {
+              id: decision.id,
+              title: decision.title,
+              summary: decision.summary,
+              confidence: decision.confidence,
+              createdAt: decision.createdAt,
+              isRecent: hoursSince < 24
+            }
+          }
+        })
+        
+        setExistingDecisions(decisionsMap)
+      }
+    } catch (error) {
+      console.error("Failed to check existing decisions:", error)
+    } finally {
+      setCheckingExisting(false)
+    }
+  }
+
   const analyzeIssue = async (issueIid: number) => {
+    // Don't analyze if already recent
+    if (existingDecisions[issueIid]?.isRecent) {
+      toast.info("This issue was already analyzed recently. Check the decisions page.")
+      return
+    }
+
     setAnalyzingIssueId(issueIid)
     setAnalysisProgress(0)
     
@@ -121,6 +178,8 @@ export default function GitLabProjectDetailPage() {
       if (data.success) {
         if (data.detected) {
           toast.success(`🎉 Decision detected! "${data.decision?.title}"`)
+          // Refresh existing decisions check
+          await checkExistingDecisions()
         } else {
           toast.info(data.message || "No decisions detected")
         }
@@ -141,14 +200,28 @@ export default function GitLabProjectDetailPage() {
   useEffect(() => {
     if (projectId) {
       fetchIssues()
+      checkExistingDecisions()
     }
   }, [projectId])
 
   const openIssues = issues.filter(i => i.state === "opened")
   const closedIssues = issues.filter(i => i.state === "closed")
 
+  const formatRelativeTime = (dateString: string) => {
+    const date = new Date(dateString)
+    const now = new Date()
+    const diffMs = now.getTime() - date.getTime()
+    const diffHrs = Math.round(diffMs / (1000 * 60 * 60))
+    const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24))
+    
+    if (diffHrs < 1) return "just now"
+    if (diffHrs < 24) return `${diffHrs}h ago`
+    return `${diffDays}d ago`
+  }
+
   const IssueCard = ({ issue }: { issue: GitLabIssue }) => {
     const analysisResult = analysisResults[issue.iid]
+    const existingDecision = existingDecisions[issue.iid]
     const isAnalyzing = analyzingIssueId === issue.iid
 
     return (
@@ -210,6 +283,46 @@ export default function GitLabProjectDetailPage() {
             </div>
           </div>
 
+          {/* Existing Decision Alert */}
+          {existingDecision && (
+            <div className={`mt-4 p-4 rounded-lg ${
+              existingDecision.isRecent 
+                ? "bg-green-50 dark:bg-green-900/10 border border-green-200" 
+                : "bg-blue-50 dark:bg-blue-900/10 border border-blue-200"
+            }`}>
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  {existingDecision.isRecent ? (
+                    <CheckCircle2 className="h-5 w-5 text-green-600" />
+                  ) : (
+                    <FileText className="h-5 w-5 text-blue-600" />
+                  )}
+                  <span className={`font-medium ${
+                    existingDecision.isRecent ? "text-green-900" : "text-blue-900"
+                  }`}>
+                    {existingDecision.isRecent ? "✅ Analyzed (Up to Date)" : "📋 Previously Analyzed"}
+                  </span>
+                </div>
+                <Badge variant={existingDecision.isRecent ? "default" : "secondary"}
+                  className={existingDecision.isRecent ? "bg-green-100 text-green-700" : ""}>
+                  {formatRelativeTime(existingDecision.createdAt)}
+                </Badge>
+              </div>
+              <p className="text-sm font-medium text-gray-900">{existingDecision.title}</p>
+              <p className="text-xs text-gray-600 mt-1 line-clamp-2">{existingDecision.summary}</p>
+              <div className="flex items-center gap-4 mt-2">
+                <span className="text-xs text-gray-500">
+                  Confidence: {Math.round(existingDecision.confidence * 100)}%
+                </span>
+                <Link href="/decisions">
+                  <Button variant="link" className="p-0 h-auto text-orange-600 text-xs">
+                    View All Decisions →
+                  </Button>
+                </Link>
+              </div>
+            </div>
+          )}
+
           {/* Analysis Progress */}
           {isAnalyzing && (
             <div className="mt-4 p-4 bg-orange-50 dark:bg-orange-900/10 rounded-lg">
@@ -262,11 +375,24 @@ export default function GitLabProjectDetailPage() {
           {!isAnalyzing && !analysisResult && issue.userNotesCount > 0 && (
             <Button 
               onClick={() => analyzeIssue(issue.iid)}
-              className="w-full mt-2 bg-orange-600 hover:bg-orange-700 text-white"
+              disabled={existingDecision?.isRecent}
+              className={existingDecision?.isRecent 
+                ? "w-full mt-2 bg-green-600 hover:bg-green-700 text-white"
+                : "w-full mt-2 bg-orange-600 hover:bg-orange-700 text-white"
+              }
               size="sm"
             >
-              <Brain className="mr-2 h-4 w-4" />
-              Analyze for Decisions
+              {existingDecision?.isRecent ? (
+                <>
+                  <CheckCircle2 className="mr-2 h-4 w-4" />
+                  Up to Date
+                </>
+              ) : (
+                <>
+                  <Brain className="mr-2 h-4 w-4" />
+                  {existingDecision ? "Re-analyze for Decisions" : "Analyze for Decisions"}
+                </>
+              )}
             </Button>
           )}
         </CardContent>
