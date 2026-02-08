@@ -1,0 +1,26 @@
+stages:
+  - sync
+
+auto-sync:
+  stage: sync
+  image: curlimages/curl:latest
+  script:
+    - echo "Starting comprehensive auto-sync for all sources..."
+    - >
+      response=$(curl -s -X POST "$APP_URL/api/auto-sync" \
+        -H "Content-Type: application/json" \
+        -H "Authorization: Bearer $CRON_SECRET" \
+        --fail)
+    - echo "Auto-sync completed!"
+    - echo "Response: $response"
+    - >
+      users=$(echo $response | grep -o '"usersProcessed":[0-9]*' | grep -o '[0-9]*')
+    - >
+      decisions=$(echo $response | grep -o '"totalDecisionsFound":[0-9]*' | grep -o '[0-9]*')
+    - echo "Users processed: $users"
+    - echo "Total decisions found: $decisions"
+  only:
+    - schedules
+  variables:
+    APP_URL: $APP_URL
+    CRON_SECRET: $CRON_SECRET
