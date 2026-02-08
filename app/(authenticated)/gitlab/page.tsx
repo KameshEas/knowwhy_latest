@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import Link from "next/link"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -13,7 +14,9 @@ import {
   Lock,
   Globe,
   Calendar,
-  FolderGit
+  FolderGit,
+  MessageSquare,
+  ArrowRight
 } from "lucide-react"
 import { toast } from "sonner"
 import { EmptyState } from "@/components/empty-state"
@@ -174,14 +177,14 @@ export default function GitLabProjectsPage() {
                     <Calendar className="h-4 w-4" />
                     {formatDate(project.createdAt)}
                   </div>
-                  <a 
-                    href={project.webUrl} 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-1 text-orange-600 hover:text-orange-800 dark:text-orange-500 dark:hover:text-orange-400 hover:underline"
-                  >
-                    View <ExternalLink className="h-4 w-4" />
-                  </a>
+                  <div className="flex gap-2">
+                    <Link href={`/gitlab/${project.id}`}>
+                      <Button variant="ghost" size="sm" className="text-orange-600 hover:text-orange-700 hover:bg-orange-50">
+                        <MessageSquare className="mr-1 h-4 w-4" />
+                        Issues <ArrowRight className="ml-1 h-4 w-4" />
+                      </Button>
+                    </Link>
+                  </div>
                 </div>
               </CardContent>
             </Card>
