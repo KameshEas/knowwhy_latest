@@ -494,4 +494,3 @@ knowwhy/
 ---
 
 **Last Updated**: February 7, 2026
-**Version**: 1.0
