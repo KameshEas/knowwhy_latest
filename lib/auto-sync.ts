@@ -15,13 +15,17 @@ interface SyncResult {
  * Comprehensive auto-sync service that fetches and analyzes decisions from all sources
  */
 export async function autoSyncAllSources(userId: string): Promise<SyncResult[]> {
+  console.log(`[AutoSync] Starting sync for user: ${userId}`)
   const results: SyncResult[] = []
 
   // Sync Slack
   try {
+    console.log("[AutoSync] Starting Slack sync...")
     const slackResult = await autoSyncSlack(userId)
     results.push(slackResult)
+    console.log(`[AutoSync] Slack sync complete: ${slackResult.itemsProcessed} items, ${slackResult.decisionsFound} decisions`)
   } catch (error) {
+    console.error("[AutoSync] Slack sync failed:", error)
     results.push({
       source: "slack",
       itemsProcessed: 0,
@@ -32,9 +36,12 @@ export async function autoSyncAllSources(userId: string): Promise<SyncResult[]> 
 
   // Sync GitLab
   try {
+    console.log("[AutoSync] Starting GitLab sync...")
     const gitlabResult = await autoSyncGitLab(userId)
     results.push(gitlabResult)
+    console.log(`[AutoSync] GitLab sync complete: ${gitlabResult.itemsProcessed} items, ${gitlabResult.decisionsFound} decisions`)
   } catch (error) {
+    console.error("[AutoSync] GitLab sync failed:", error)
     results.push({
       source: "gitlab",
       itemsProcessed: 0,
@@ -45,9 +52,12 @@ export async function autoSyncAllSources(userId: string): Promise<SyncResult[]> 
 
   // Sync Google Meet (Calendar events with Meet links)
   try {
+    console.log("[AutoSync] Starting Google Meet sync...")
     const meetResult = await autoSyncGoogleMeet(userId)
     results.push(meetResult)
+    console.log(`[AutoSync] Meet sync complete: ${meetResult.itemsProcessed} meetings`)
   } catch (error) {
+    console.error("[AutoSync] Meet sync failed:", error)
     results.push({
       source: "meet",
       itemsProcessed: 0,
@@ -67,6 +77,7 @@ async function autoSyncSlack(userId: string): Promise<SyncResult> {
   let decisionsFound = 0
 
   const channels = await getSlackChannels(userId)
+  console.log(`[AutoSync:Slack] Found ${channels.length} channels`)
 
   for (const channel of channels) {
     // Skip channels with very few members
@@ -82,10 +93,14 @@ async function autoSyncSlack(userId: string): Promise<SyncResult> {
       },
     })
 
-    if (existingDecision) continue
+    if (existingDecision) {
+      console.log(`[AutoSync:Slack] Skipping #${channel.name} - already analyzed recently`)
+      continue
+    }
 
     // Fetch messages
     const messages = await getSlackChannelMessages(userId, channel.id, 100)
+    console.log(`[AutoSync:Slack] Channel #${channel.name}: ${messages.length} messages`)
     itemsProcessed += messages.length
 
     if (messages.length === 0) continue
@@ -99,7 +114,9 @@ async function autoSyncSlack(userId: string): Promise<SyncResult> {
     if (!conversation.trim()) continue
 
     // Analyze for decisions
+    console.log(`[AutoSync:Slack] Analyzing #${channel.name}...`)
     const detection = await detectDecision(conversation)
+    console.log(`[AutoSync:Slack] Detection result: isDecision=${detection.isDecision}, confidence=${detection.confidence}`)
 
     if (detection.isDecision && detection.confidence >= 0.6) {
       const brief = await generateDecisionBrief(conversation, `Slack: #${channel.name}`)
@@ -119,6 +136,7 @@ async function autoSyncSlack(userId: string): Promise<SyncResult> {
           sourceLink: `https://slack.com/app_redirect?channel=${channel.id}`,
         },
       })
+      console.log(`[AutoSync:Slack] ✅ Decision saved for #${channel.name}: ${brief.title}`)
       decisionsFound++
     }
   }
@@ -127,21 +145,44 @@ async function autoSyncSlack(userId: string): Promise<SyncResult> {
 }
 
 /**
- * Auto-sync GitLab issues
+ * Auto-sync GitLab issues - only analyze issues with recent activity
  */
 async function autoSyncGitLab(userId: string): Promise<SyncResult> {
   let itemsProcessed = 0
   let decisionsFound = 0
 
   const projects = await getGitLabProjects(userId)
+  console.log(`[AutoSync:GitLab] Found ${projects.length} projects`)
 
-  for (const project of projects.slice(0, 5)) { // Process up to 5 projects
+  // Only process projects updated in last 7 days
+  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+
+  for (const project of projects.slice(0, 10)) { // Process up to 10 projects
+    const lastActivity = new Date(project.last_activity_at)
+    if (lastActivity < sevenDaysAgo) {
+      console.log(`[AutoSync:GitLab] Skipping project ${project.name} - no recent activity`)
+      continue
+    }
+
+    console.log(`[AutoSync:GitLab] Processing project: ${project.name}`)
+
     // Sync Issues
     try {
       const issues = await getGitLabIssues(userId, project.id, "all")
+      console.log(`[AutoSync:GitLab] Project ${project.name}: ${issues.length} issues`)
 
-      for (const issue of issues.slice(0, 5)) { // Process last 5 issues per project
-        // Check if already analyzed
+      // Filter to only issues updated in last 7 days
+      const recentIssues = issues.filter((issue: any) => {
+        const updatedAt = new Date(issue.updated_at)
+        return updatedAt >= sevenDaysAgo
+      })
+
+      console.log(`[AutoSync:GitLab] Recent issues (last 7 days): ${recentIssues.length}`)
+
+      for (const issue of recentIssues.slice(0, 10)) { // Process last 10 recent issues
+        console.log(`[AutoSync:GitLab] Checking issue #${issue.iid}: ${issue.title}`)
+
+        // Check if already analyzed in last 24 hours
         const existingDecision = await prisma.decision.findFirst({
           where: {
             userId,
@@ -151,27 +192,49 @@ async function autoSyncGitLab(userId: string): Promise<SyncResult> {
           },
         })
 
-        if (existingDecision) continue
+        if (existingDecision) {
+          console.log(`[AutoSync:GitLab] Skipping issue #${issue.iid} - already analyzed recently`)
+          continue
+        }
 
         // Fetch notes/discussions
         const notes = await getGitLabIssueNotes(userId, project.id, issue.iid)
         itemsProcessed++
 
         const userNotes = notes.filter((n) => !n.system)
+        console.log(`[AutoSync:GitLab] Issue #${issue.iid}: ${userNotes.length} user notes`)
+
         if (userNotes.length === 0) continue
 
-        // Build conversation
-        let conversation = `Issue: ${issue.title}\n\n`
+        // Build conversation with clear timestamps
+        let conversation = `Issue Title: ${issue.title}\n`
+        conversation += `Issue State: ${issue.state}\n`
+        conversation += `Last Updated: ${issue.updated_at}\n\n`
+
         if (issue.description) {
           conversation += `Description:\n${issue.description}\n\n`
         }
-        conversation += "Discussion:\n"
-        userNotes.forEach((note) => {
-          conversation += `${note.author.name}: ${note.body}\n\n`
+
+        conversation += "Discussion (in chronological order):\n"
+        // Sort notes by created_at to ensure chronological order
+        const sortedNotes = userNotes.sort((a, b) =>
+          new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+        )
+
+        sortedNotes.forEach((note, index) => {
+          conversation += `[${index + 1}] ${note.author.name} (${note.created_at}):\n${note.body}\n\n`
         })
+
+        conversation += "\n---\n"
+        conversation += "Analyze this conversation and identify the FINAL decision made. "
+        conversation += "Pay special attention to the LATEST messages as they represent the current decision."
+
+        console.log(`[AutoSync:GitLab] Analyzing issue #${issue.iid}...`)
+        console.log(`[AutoSync:GitLab] Conversation length: ${conversation.length} chars`)
 
         // Analyze
         const detection = await detectDecision(conversation)
+        console.log(`[AutoSync:GitLab] Detection result: isDecision=${detection.isDecision}, confidence=${detection.confidence}`)
 
         if (detection.isDecision && detection.confidence >= 0.6) {
           const brief = await generateDecisionBrief(conversation, `GitLab Issue: ${issue.title}`)
@@ -191,11 +254,14 @@ async function autoSyncGitLab(userId: string): Promise<SyncResult> {
               sourceLink: issue.web_url,
             },
           })
+          console.log(`[AutoSync:GitLab] ✅ Decision saved for issue #${issue.iid}: ${brief.title}`)
           decisionsFound++
+        } else {
+          console.log(`[AutoSync:GitLab] ❌ No decision detected for issue #${issue.iid}`)
         }
       }
     } catch (error) {
-      console.error(`Error processing project ${project.name}:`, error)
+      console.error(`[AutoSync:GitLab] Error processing project ${project.name}:`, error)
     }
   }
 
@@ -233,6 +299,8 @@ async function autoSyncGoogleMeet(userId: string): Promise<SyncResult> {
       new Date().toISOString()
     )
 
+    console.log(`[AutoSync:Meet] Found ${events.length} meetings in last 7 days`)
+
     for (const event of events) {
       itemsProcessed++
 
@@ -244,21 +312,23 @@ async function autoSyncGoogleMeet(userId: string): Promise<SyncResult> {
         },
       })
 
-      if (existingMeeting) continue
+      if (existingMeeting) {
+        console.log(`[AutoSync:Meet] Skipping meeting ${event.summary} - already processed`)
+        continue
+      }
 
       // Note: To get actual transcripts, you would need:
       // 1. Google Workspace Enterprise license
       // 2. Access to Google Meet Recording API
       // 3. Process the transcript with AI
 
-      // For now, we just log that we found a meeting
-      console.log(`Found meeting: ${event.summary} (${event.id})`)
+      console.log(`[AutoSync:Meet] Found meeting: ${event.summary} (${event.id})`)
     }
 
-    console.log(`Google Meet sync: Processed ${itemsProcessed} meetings`)
+    console.log(`[AutoSync:Meet] Processed ${itemsProcessed} meetings`)
 
   } catch (error) {
-    console.error("Google Meet sync error:", error)
+    console.error("[AutoSync:Meet] Google Meet sync error:", error)
     throw error
   }
 
