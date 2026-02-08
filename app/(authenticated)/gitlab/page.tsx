@@ -16,6 +16,7 @@ import {
   FolderGit
 } from "lucide-react"
 import { toast } from "sonner"
+import { EmptyState } from "@/components/empty-state"
 
 interface GitLabProject {
   id: number
@@ -33,9 +34,11 @@ export default function GitLabProjectsPage() {
   const [filteredProjects, setFilteredProjects] = useState<GitLabProject[]>([])
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState("")
+  const [error, setError] = useState<string | null>(null)
 
   const fetchProjects = async () => {
     setLoading(true)
+    setError(null)
     try {
       const response = await fetch("/api/gitlab/projects")
       const data = await response.json()
@@ -44,9 +47,11 @@ export default function GitLabProjectsPage() {
         setProjects(data.projects)
         setFilteredProjects(data.projects)
       } else {
+        setError(data.error || "Failed to fetch projects")
         toast.error(data.error || "Failed to fetch projects")
       }
     } catch (error) {
+      setError("Failed to fetch projects")
       toast.error("Failed to fetch projects")
     } finally {
       setLoading(false)
@@ -75,71 +80,83 @@ export default function GitLabProjectsPage() {
     return new Date(dateString).toLocaleDateString()
   }
 
+  // Check if GitLab is not connected
+  const isNotConnected = error?.includes("not connected") || error?.includes("Unauthorized") || (projects.length === 0 && !loading && !searchQuery)
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">GitLab Projects</h1>
+          <h1 className="text-3xl font-bold tracking-tight text-orange-900 dark:text-orange-100">GitLab Projects</h1>
           <p className="text-zinc-500 dark:text-zinc-400 mt-2">
             Browse and manage your GitLab projects for decision detection.
           </p>
         </div>
-        <Button
-          variant="outline"
-          onClick={fetchProjects}
-          disabled={loading}
-        >
-          {loading ? (
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-          ) : (
-            <RefreshCw className="mr-2 h-4 w-4" />
-          )}
-          Refresh
-        </Button>
+        {!isNotConnected && (
+          <Button
+            variant="outline"
+            onClick={fetchProjects}
+            disabled={loading}
+          >
+            {loading ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <RefreshCw className="mr-2 h-4 w-4" />
+            )}
+            Refresh
+          </Button>
+        )}
       </div>
 
-      <div className="flex gap-4">
-        <div className="relative flex-1">
-          <FolderGit className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
-          <Input
-            placeholder="Search projects..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-10"
-          />
+      {!isNotConnected && (
+        <div className="flex gap-4">
+          <div className="relative flex-1">
+            <FolderGit className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-orange-500" />
+            <Input
+              placeholder="Search projects..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-10 border-orange-200 focus:border-orange-500"
+            />
+          </div>
         </div>
-      </div>
+      )}
 
       {loading ? (
-        <div className="flex items-center justify-center py-12">
-          <Loader2 className="h-8 w-8 animate-spin text-zinc-500" />
-        </div>
-      ) : filteredProjects.length === 0 ? (
-        <Card>
+        <Card className="border-orange-100">
           <CardContent className="py-12 text-center">
-            <FolderGit className="mx-auto h-12 w-12 text-zinc-400" />
-            <h3 className="mt-4 text-lg font-medium">No projects found</h3>
+            <Loader2 className="mx-auto h-8 w-8 animate-spin text-orange-500" />
+            <p className="mt-4 text-zinc-500">Loading GitLab projects...</p>
+          </CardContent>
+        </Card>
+      ) : isNotConnected ? (
+        <EmptyState type="gitlab" />
+      ) : filteredProjects.length === 0 ? (
+        <Card className="border-orange-100">
+          <CardContent className="py-12 text-center">
+            <FolderGit className="mx-auto h-12 w-12 text-orange-300 mb-4" />
+            <h3 className="text-lg font-medium text-orange-900 dark:text-orange-100">No projects found</h3>
             <p className="text-zinc-500 mt-2">
               {searchQuery
                 ? "No projects match your search."
-                : "Connect your GitLab account to see projects here."}
+                : "No projects available in your GitLab account."}
             </p>
           </CardContent>
         </Card>
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {filteredProjects.map((project) => (
-            <Card key={project.id} className="hover:shadow-md transition-shadow">
+            <Card key={project.id} className="hover:shadow-lg hover:border-orange-300 transition-all border-2 border-transparent">
               <CardHeader className="pb-3">
                 <div className="flex items-start justify-between">
                   <div className="flex items-center gap-2">
-                    <GitBranch className="h-5 w-5 text-zinc-500" />
-                    <CardTitle className="text-lg">{project.name}</CardTitle>
+                    <GitBranch className="h-5 w-5 text-orange-600" />
+                    <CardTitle className="text-lg text-orange-900 dark:text-orange-100">{project.name}</CardTitle>
                   </div>
                   {project.visibility === "private" ? (
-                    <Badge variant="secondary"><Lock className="h-3 w-3 mr-1" /> Private</Badge>
+                    <Badge variant="secondary" className="bg-orange-100 text-orange-700"><Lock className="h-3 w-3 mr-1" /> Private</Badge>
                   ) : (
-                    <Badge variant="outline"><Globe className="h-3 w-3 mr-1" /> {project.visibility}</Badge>
+                    <Badge variant="outline" className="border-orange-200 text-orange-600"><Globe className="h-3 w-3 mr-1" /> {project.visibility}</Badge>
                   )}
                 </div>
                 <CardDescription className="truncate">
@@ -152,8 +169,8 @@ export default function GitLabProjectsPage() {
                     {project.description}
                   </p>
                 )}
-                <div className="flex items-center justify-between pt-2 text-sm text-zinc-500">
-                  <div className="flex items-center gap-1">
+                <div className="flex items-center justify-between pt-2 text-sm">
+                  <div className="flex items-center gap-1 text-orange-600">
                     <Calendar className="h-4 w-4" />
                     {formatDate(project.createdAt)}
                   </div>
@@ -161,7 +178,7 @@ export default function GitLabProjectsPage() {
                     href={project.webUrl} 
                     target="_blank" 
                     rel="noopener noreferrer"
-                    className="flex items-center gap-1 text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
+                    className="flex items-center gap-1 text-orange-600 hover:text-orange-800 dark:text-orange-500 dark:hover:text-orange-400 hover:underline"
                   >
                     View <ExternalLink className="h-4 w-4" />
                   </a>
