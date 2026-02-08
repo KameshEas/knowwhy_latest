@@ -1,6 +1,6 @@
 import { auth } from "@/auth"
 import { redirect } from "next/navigation"
-import { DashboardNav } from "@/components/dashboard-nav"
+import { SidebarNav } from "@/components/sidebar-nav"
 import { UserNav } from "@/components/user-nav"
 
 export default async function AuthenticatedLayout({
@@ -15,34 +15,14 @@ export default async function AuthenticatedLayout({
   }
 
   return (
-    <div className="flex min-h-screen flex-col">
-      <header className="sticky top-0 z-50 w-full border-b border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950">
-        <div className="container flex h-16 items-center justify-between px-4">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
-              <svg
-                className="w-5 h-5 text-white"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"
-                />
-              </svg>
-            </div>
-            <span className="text-lg font-semibold">KnowWhy</span>
-          </div>
-          <div className="flex items-center gap-4">
-            <DashboardNav />
-            <UserNav user={session.user} />
-          </div>
-        </div>
-      </header>
-      <main className="flex-1 container mx-auto px-4 py-8">{children}</main>
+    <div className="flex min-h-screen bg-zinc-50/50 dark:bg-zinc-950">
+      {/* Left Sidebar */}
+      <SidebarNav user={session.user} />
+      
+      {/* Main Content */}
+      <main className="flex-1 ml-64 p-8 overflow-auto">
+        {children}
+      </main>
     </div>
   )
 }
