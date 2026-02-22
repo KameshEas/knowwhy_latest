@@ -1,4 +1,12 @@
-import { google } from "googleapis"
+// Defer loading `googleapis` until runtime in server contexts to avoid
+// including it in the module at import-time.
+
+async function loadGoogleApis() {
+  // Use require so bundlers treat this as a runtime import on the server
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const { google } = require('googleapis')
+  return google
+}
 
 export interface CalendarEvent {
   id: string
@@ -19,9 +27,9 @@ export interface CreateEventInput {
 }
 
 async function refreshAccessToken(refreshToken: string, clientId: string, clientSecret: string): Promise<string> {
+  const google = await loadGoogleApis()
   const oauth2Client = new google.auth.OAuth2(clientId, clientSecret)
   oauth2Client.setCredentials({ refresh_token: refreshToken })
-  
   const { credentials } = await oauth2Client.refreshAccessToken()
   return credentials.access_token!
 }
@@ -33,9 +41,9 @@ export async function createGoogleCalendarEvent(
   clientId?: string,
   clientSecret?: string
 ): Promise<CalendarEvent> {
+  const google = await loadGoogleApis()
   const oauth2Client = new google.auth.OAuth2()
   oauth2Client.setCredentials({ access_token: accessToken })
-
   const calendar = google.calendar({ version: "v3", auth: oauth2Client })
 
   try {
@@ -82,7 +90,7 @@ export async function createGoogleCalendarEvent(
         date: createdEvent.end?.date || null,
       },
       hangoutLink: createdEvent.hangoutLink || undefined,
-      attendees: createdEvent.attendees?.map((attendee) => ({
+        attendees: createdEvent.attendees?.map((attendee: any) => ({
         email: attendee.email || null,
         displayName: attendee.displayName || null,
         responseStatus: attendee.responseStatus || null,
@@ -109,7 +117,7 @@ export async function createGoogleCalendarEvent(
             dateTime: eventData.endTime,
             timeZone: "Asia/Calcutta",
           },
-          attendees: eventData.attendees?.map((email) => ({ email })),
+            attendees: eventData.attendees?.map((email) => ({ email })),
           conferenceData: {
             createRequest: {
               requestId: `meet-${Date.now()}`,
@@ -141,7 +149,7 @@ export async function createGoogleCalendarEvent(
             date: createdEvent.end?.date || null,
           },
           hangoutLink: createdEvent.hangoutLink || undefined,
-          attendees: createdEvent.attendees?.map((attendee) => ({
+          attendees: createdEvent.attendees?.map((attendee: any) => ({
             email: attendee.email || null,
             displayName: attendee.displayName || null,
             responseStatus: attendee.responseStatus || null,
@@ -164,9 +172,9 @@ export async function getCalendarEvents(
   clientId?: string,
   clientSecret?: string
 ): Promise<CalendarEvent[]> {
+  const google = await loadGoogleApis()
   const oauth2Client = new google.auth.OAuth2()
   oauth2Client.setCredentials({ access_token: accessToken })
-
   const calendar = google.calendar({ version: "v3", auth: oauth2Client })
 
   try {
@@ -180,10 +188,10 @@ export async function getCalendarEvents(
     })
 
     const events = response.data.items || []
-    
+
     return events
-      .filter((event) => event.hangoutLink || event.conferenceData)
-      .map((event) => ({
+      .filter((event: any) => event.hangoutLink || event.conferenceData)
+      .map((event: any) => ({
         id: event.id || "",
         summary: event.summary || "Untitled Meeting",
         description: event.description || undefined,
@@ -196,7 +204,7 @@ export async function getCalendarEvents(
           date: event.end?.date || null,
         },
         hangoutLink: event.hangoutLink || undefined,
-        attendees: event.attendees?.map((attendee) => ({
+        attendees: event.attendees?.map((attendee: any) => ({
           email: attendee.email || null,
           displayName: attendee.displayName || null,
           responseStatus: attendee.responseStatus || null,
@@ -224,8 +232,8 @@ export async function getCalendarEvents(
         const events = response.data.items || []
         
         return events
-          .filter((event) => event.hangoutLink || event.conferenceData)
-          .map((event) => ({
+          .filter((event: any) => event.hangoutLink || event.conferenceData)
+          .map((event: any) => ({
             id: event.id || "",
             summary: event.summary || "Untitled Meeting",
             description: event.description || undefined,
@@ -238,7 +246,7 @@ export async function getCalendarEvents(
               date: event.end?.date || null,
             },
             hangoutLink: event.hangoutLink || undefined,
-            attendees: event.attendees?.map((attendee) => ({
+            attendees: event.attendees?.map((attendee: any) => ({
               email: attendee.email || null,
               displayName: attendee.displayName || null,
               responseStatus: attendee.responseStatus || null,

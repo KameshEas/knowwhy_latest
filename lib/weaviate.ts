@@ -1,28 +1,25 @@
-import weaviate, { WeaviateClient } from 'weaviate-ts-client'
+// Defer loading of the heavy weaviate client until runtime to avoid inflating server startup
+let client: any | null = null
 
-// Weaviate client singleton
-let client: WeaviateClient | null = null
-
-export function getWeaviateClient(): WeaviateClient {
-  if (client) {
-    return client
-  }
+export function getWeaviateClient(): any {
+  if (client) return client
 
   const weaviateUrl = process.env.WEAVIATE_URL || 'http://localhost:8080'
 
-  // For local development, we can use anonymous access
-  // In production, you would configure API keys
+  // Dynamically import the weaviate client only when needed
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const weaviate = require('weaviate-ts-client')
+
   try {
     const parsed = new URL(weaviateUrl)
     client = weaviate.client({
       scheme: parsed.protocol.replace(":", ""),
       host: parsed.host,
       headers: {
-        'X-OpenAI-Api-Key': process.env.GROQ_API_KEY || '', // Fallback for any OpenAI-based features
+        'X-OpenAI-Api-Key': process.env.GROQ_API_KEY || '',
       },
     })
   } catch (err) {
-    // Fallback for non-standard URLs
     client = weaviate.client({
       scheme: 'http',
       host: 'localhost:8080',
