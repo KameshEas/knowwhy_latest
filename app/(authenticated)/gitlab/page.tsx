@@ -22,6 +22,7 @@ import {
   XCircle
 } from "lucide-react"
 import { toast } from "sonner"
+import useSWR from "swr"
 import { EmptyState } from "@/components/empty-state"
 
 interface GitLabProject {
@@ -50,27 +51,20 @@ export default function GitLabProjectsPage() {
   const [error, setError] = useState<string | null>(null)
   const [webhookStatus, setWebhookStatus] = useState<ProjectWebhookStatus>({})
 
-  const fetchProjects = async () => {
-    setLoading(true)
-    setError(null)
-    try {
-      const response = await fetch("/api/gitlab/projects")
-      const data = await response.json()
-      
-      if (data.success) {
-        setProjects(data.projects)
-        setFilteredProjects(data.projects)
-      } else {
-        setError(data.error || "Failed to fetch projects")
-        toast.error(data.error || "Failed to fetch projects")
-      }
-    } catch {
-      setError("Failed to fetch projects")
-      toast.error("Failed to fetch projects")
-    } finally {
-      setLoading(false)
+  const fetcher = (url: string) => fetch(url).then((res) => res.json())
+  const { data: projectsData, error: projectsError, isLoading: projectsLoading, mutate: mutateProjects } = useSWR("/api/gitlab/projects", fetcher)
+
+  useEffect(() => {
+    if (projectsData?.success) {
+      setProjects(projectsData.projects)
+      setFilteredProjects(projectsData.projects)
+      setError(null)
+    } else if (projectsData && !projectsData.success) {
+      setError(projectsData.error || "Failed to fetch projects")
     }
-  }
+    setLoading(Boolean(projectsLoading))
+    if (projectsError) setError(String(projectsError))
+  }, [projectsData, projectsError, projectsLoading])
 
   // Check webhook status for all projects
   const checkWebhookStatus = async () => {
@@ -138,9 +132,7 @@ export default function GitLabProjectsPage() {
     }
   }
 
-  useEffect(() => {
-    fetchProjects()
-  }, [])
+
 
   // Check webhook status after projects are loaded
   useEffect(() => {
@@ -182,7 +174,7 @@ export default function GitLabProjectsPage() {
         {!isNotConnected && (
           <Button
             variant="outline"
-            onClick={fetchProjects}
+            onClick={() => mutateProjects()}
             disabled={loading}
           >
             {loading ? (

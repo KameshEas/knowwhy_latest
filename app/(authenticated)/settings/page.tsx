@@ -27,6 +27,7 @@ import {
   ChevronRight
 } from "lucide-react"
 import { toast } from "sonner"
+import useSWR from "swr"
 
 interface IntegrationStatus {
   google: boolean
@@ -147,10 +148,7 @@ export default function SettingsPage() {
     }
   }
 
-  useEffect(() => {
-    fetchStatus()
-    fetchWebhookConfig()
-  }, [])
+  
 
   const connectSlack = async () => {
     setConnecting("slack")
@@ -185,6 +183,27 @@ export default function SettingsPage() {
       setConnecting(null)
     }
   }
+
+  const fetcher = (url: string) => fetch(url).then((res) => res.json())
+
+  const { data: statusData, isLoading: statusLoading } = useSWR("/api/integrations/status", fetcher)
+  const { data: webhookConfigData } = useSWR("/api/webhooks/config", fetcher)
+
+  useEffect(() => {
+    if (statusData?.success) {
+      setStatus(statusData.status)
+      setSlackInfo(statusData.slack)
+      setGitLabInfo(statusData.gitlab)
+    }
+    setLoading(Boolean(statusLoading))
+  }, [statusData, statusLoading])
+
+  useEffect(() => {
+    if (webhookConfigData?.success) {
+      setWebhookConfig(webhookConfigData)
+    }
+  }, [webhookConfigData])
+  
 
   const connectGitLab = async () => {
     if (!gitlabToken.trim()) {
@@ -285,21 +304,26 @@ export default function SettingsPage() {
     }
   }
 
-  const fetchWebhookLogs = async (filter?: {source?: string, status?: string, offset?: number}) => {
+  const fetchWebhookLogs = async (filter?: {source?: string, status?: string, offset?: number}, append = false) => {
     setLogsLoading(true)
     try {
       const params = new URLSearchParams()
       if (filter?.source) params.set("source", filter.source)
       if (filter?.status) params.set("status", filter.status)
-      if (filter?.offset) params.set("offset", filter.offset.toString())
-      params.set("limit", "20")
-      
+      const offset = filter?.offset ?? 0
+      if (offset) params.set("offset", offset.toString())
+      params.set("limit", String(logsPagination.limit || 20))
+
       const response = await fetch(`/api/webhooks/logs?${params.toString()}`)
       const data = await response.json()
-      
+
       if (data.success) {
-        setWebhookLogs(data.logs)
-        setLogsPagination(prev => ({ ...prev, ...data.pagination }))
+        if (append) {
+          setWebhookLogs((prev) => [...prev, ...data.logs])
+        } else {
+          setWebhookLogs(data.logs)
+        }
+        setLogsPagination((prev) => ({ ...prev, ...data.pagination, offset }))
       }
     } catch (error) {
       console.error("Error fetching webhook logs:", error)
@@ -799,9 +823,11 @@ export default function SettingsPage() {
                       id="logs-source-filter"
                       className="px-3 py-2 text-sm border rounded-lg bg-zinc-50 dark:bg-zinc-900"
                       onChange={(e) => {
-                        const value = e.target.value
-                        setLogsFilter(prev => ({ ...prev, source: value || undefined }))
-                        fetchWebhookLogs({ ...logsFilter, source: value || undefined })
+                        const value = e.target.value || undefined
+                        const newFilter = { ...logsFilter, source: value }
+                        setLogsFilter(newFilter)
+                        setLogsPagination((p) => ({ ...p, offset: 0 }))
+                        fetchWebhookLogs({ ...newFilter, offset: 0 })
                       }}
                     >
                       <option value="">All Sources</option>
@@ -817,9 +843,11 @@ export default function SettingsPage() {
                       id="logs-status-filter"
                       className="px-3 py-2 text-sm border rounded-lg bg-zinc-50 dark:bg-zinc-900"
                       onChange={(e) => {
-                        const value = e.target.value
-                        setLogsFilter(prev => ({ ...prev, status: value || undefined }))
-                        fetchWebhookLogs({ ...logsFilter, status: value || undefined })
+                        const value = e.target.value || undefined
+                        const newFilter = { ...logsFilter, status: value }
+                        setLogsFilter(newFilter)
+                        setLogsPagination((p) => ({ ...p, offset: 0 }))
+                        fetchWebhookLogs({ ...newFilter, offset: 0 })
                       }}
                     >
                       <option value="">All Status</option>
@@ -913,32 +941,42 @@ export default function SettingsPage() {
                 {/* Pagination */}
                 {logsPagination.total > logsPagination.limit && (
                   <div className="flex items-center justify-between">
-                    <p className="text-sm text-zinc-500">
-                      Showing {webhookLogs.length} of {logsPagination.total} entries
-                    </p>
-                    <div className="flex gap-2">
-                      <Button 
-                        variant="outline" 
-                        size="sm"
-                        disabled={logsPagination.offset === 0}
-                        onClick={() => {
-                          const newOffset = Math.max(0, logsPagination.offset - logsPagination.limit)
-                          fetchWebhookLogs({...logsFilter, offset: newOffset})
-                        }}
-                      >
-                        <ChevronLeft className="h-4 w-4" />
-                      </Button>
-                      <Button 
-                        variant="outline" 
-                        size="sm"
-                        disabled={!logsPagination.hasMore}
-                        onClick={() => {
-                          const newOffset = logsPagination.offset + logsPagination.limit
-                          fetchWebhookLogs({...logsFilter, offset: newOffset})
-                        }}
-                      >
-                        <ChevronRight className="h-4 w-4" />
-                      </Button>
+                    <p className="text-sm text-zinc-500">Showing {webhookLogs.length} of {logsPagination.total} entries</p>
+                    <div className="flex gap-2 items-center">
+                      <div className="flex gap-2">
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          disabled={logsPagination.offset === 0}
+                          onClick={() => {
+                            const newOffset = Math.max(0, logsPagination.offset - logsPagination.limit)
+                            fetchWebhookLogs({...logsFilter, offset: newOffset})
+                          }}
+                        >
+                          <ChevronLeft className="h-4 w-4" />
+                        </Button>
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          disabled={!logsPagination.hasMore}
+                          onClick={() => {
+                            const newOffset = logsPagination.offset + logsPagination.limit
+                            fetchWebhookLogs({...logsFilter, offset: newOffset})
+                          }}
+                        >
+                          <ChevronRight className="h-4 w-4" />
+                        </Button>
+                      </div>
+                      {logsPagination.hasMore && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => fetchWebhookLogs({...logsFilter, offset: logsPagination.offset + logsPagination.limit}, true)}
+                          disabled={logsLoading}
+                        >
+                          Load more
+                        </Button>
+                      )}
                     </div>
                   </div>
                 )}

@@ -16,6 +16,7 @@ import {
   ArrowRight
 } from "lucide-react"
 import { toast } from "sonner"
+import useSWR from "swr"
 import { EmptyState } from "@/components/empty-state"
 
 interface SlackChannel {
@@ -89,30 +90,20 @@ export default function SlackChannelsPage() {
   const [searchQuery, setSearchQuery] = useState("")
   const [error, setError] = useState<string | null>(null)
 
-  const fetchChannels = async () => {
-    setLoading(true)
-    setError(null)
-    try {
-      const response = await fetch("/api/slack/channels")
-      const data = await response.json()
-      if (data.success) {
-        setChannels(data.channels)
-        setFilteredChannels(data.channels)
-      } else {
-        setError(data.error || "Failed to fetch channels")
-        toast.error(data.error || "Failed to fetch channels")
-      }
-    } catch (err) {
-      setError("Failed to fetch channels")
-      toast.error("Failed to fetch channels")
-    } finally {
-      setLoading(false)
-    }
-  }
+  const fetcher = (url: string) => fetch(url).then((res) => res.json())
+  const { data: channelsData, error: channelsError, isLoading: channelsLoading, mutate: mutateChannels } = useSWR("/api/slack/channels", fetcher)
 
   useEffect(() => {
-    fetchChannels()
-  }, [])
+    if (channelsData?.success) {
+      setChannels(channelsData.channels)
+      setFilteredChannels(channelsData.channels)
+      setError(null)
+    } else if (channelsData && !channelsData.success) {
+      setError(channelsData.error || "Failed to fetch channels")
+    }
+    setLoading(Boolean(channelsLoading))
+    if (channelsError) setError(String(channelsError))
+  }, [channelsData, channelsError, channelsLoading])
 
   useEffect(() => {
     if (searchQuery) {
@@ -147,7 +138,7 @@ export default function SlackChannelsPage() {
         {!isNotConnected && (
           <Button
             variant="outline"
-            onClick={fetchChannels}
+            onClick={() => mutateChannels()}
             disabled={loading}
           >
             {loading ? (
