@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { detectDecision, generateDecisionBrief } from "@/lib/groq"
+import { sendDecisionNotification } from "@/lib/notifications"
 import crypto from "crypto"
 
 // Verify Slack request signature
@@ -140,6 +141,17 @@ export async function POST(request: Request) {
         return NextResponse.json({ message: "No messages to analyze" }, { status: 200 })
       }
 
+      // Log the webhook event
+      const webhookLog = await prisma.webhookLog.create({
+        data: {
+          userId,
+          source: "slack",
+          eventType: event.type,
+          payload: JSON.stringify({ channel: event.channel, messageCount: messages.length }),
+          status: "pending",
+        },
+      })
+
       // Analyze for decisions
       console.log("[SlackWebhook] Analyzing conversation for decisions...")
       const detection = await detectDecision(conversation)
@@ -164,6 +176,28 @@ export async function POST(request: Request) {
           },
         })
 
+        // Update webhook log
+        await prisma.webhookLog.update({
+          where: { id: webhookLog.id },
+          data: {
+            status: "processed",
+            decisionId: decision.id,
+            decisionTitle: decision.title,
+            confidence: detection.confidence,
+            processedAt: new Date(),
+          },
+        })
+
+        // Send notification
+        await sendDecisionNotification({
+          userId,
+          type: "decision_detected",
+          title: decision.title,
+          message: `A new decision was detected from Slack with ${Math.round(detection.confidence * 100)}% confidence.`,
+          decisionId: decision.id,
+          source: "slack",
+        })
+
         console.log("[SlackWebhook] ✅ Decision detected and saved:", decision.title)
         return NextResponse.json({ 
           success: true, 
@@ -171,6 +205,15 @@ export async function POST(request: Request) {
           message: "Decision detected and saved"
         })
       }
+
+      // Update webhook log for no decision
+      await prisma.webhookLog.update({
+        where: { id: webhookLog.id },
+        data: {
+          status: "processed",
+          processedAt: new Date(),
+        },
+      })
 
       return NextResponse.json({ message: "No decision detected" }, { status: 200 })
     }

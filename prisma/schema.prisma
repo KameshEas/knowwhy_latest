@@ -157,3 +157,24 @@ model Meeting {
   @@index([startTime])
   @@map("meetings")
 }
+
+model WebhookLog {
+  id            String    @id @default(cuid())
+  userId        String    @map("user_id")
+  source        String    // "slack", "gitlab"
+  eventType     String    @map("event_type") // "message", "issue", "merge_request"
+  payload       String?   @db.Text // JSON payload stored as text
+  status        String    @default("pending") // pending, processed, failed
+  decisionId    String?   @map("decision_id")
+  decisionTitle String?   @map("decision_title")
+  confidence    Float?    @default(0)
+  errorMessage  String?   @map("error_message") @db.Text
+  processedAt   DateTime? @map("processed_at")
+  createdAt     DateTime  @default(now()) @map("created_at")
+
+  @@index([userId])
+  @@index([source])
+  @@index([status])
+  @@index([createdAt])
+  @@map("webhook_logs")
+}
