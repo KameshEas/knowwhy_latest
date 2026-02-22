@@ -275,7 +275,7 @@ async function autoSyncGitLab(userId: string): Promise<SyncResult> {
  */
 async function autoSyncGoogleMeet(userId: string): Promise<SyncResult> {
   let itemsProcessed = 0
-  let decisionsFound = 0
+  const decisionsFound = 0
 
   try {
     // Get the user's Google account

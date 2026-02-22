@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { useParams } from "next/navigation"
 import Link from "next/link"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -10,18 +10,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Progress } from "@/components/ui/progress"
 import { 
   Loader2, 
-  GitBranch,
   ArrowLeft,
   RefreshCw,
   ExternalLink,
-  Lock,
-  Globe,
   Calendar,
   MessageSquare,
   CheckCircle,
   AlertCircle,
   Sparkles,
-  Clock,
   Brain,
   CheckCircle2,
   FileText
@@ -84,9 +80,9 @@ export default function GitLabProjectDetailPage() {
   const [analysisProgress, setAnalysisProgress] = useState(0)
   const [analysisResults, setAnalysisResults] = useState<Record<number, AnalysisResult>>({})
   const [existingDecisions, setExistingDecisions] = useState<Record<number, ExistingDecision>>({})
-  const [checkingExisting, setCheckingExisting] = useState(true)
-
-  const fetchIssues = async () => {
+  
+   
+  const fetchIssues = useCallback(async () => {
     setLoading(true)
     try {
       const response = await fetch(`/api/gitlab/projects/${projectId}/issues?state=all`)
@@ -97,15 +93,15 @@ export default function GitLabProjectDetailPage() {
       } else {
         toast.error(data.error || "Failed to fetch issues")
       }
-    } catch (error) {
+    } catch {
       toast.error("Failed to fetch issues")
     } finally {
       setLoading(false)
     }
-  }
+  }, [projectId])
 
-  const checkExistingDecisions = async () => {
-    setCheckingExisting(true)
+   
+  const checkExistingDecisions = useCallback(async () => {
     try {
       const response = await fetch(`/api/decisions?source=gitlab`)
       const data = await response.json()
@@ -113,12 +109,12 @@ export default function GitLabProjectDetailPage() {
       if (data.success && data.decisions) {
         const decisionsMap: Record<number, ExistingDecision> = {}
         
-        data.decisions.forEach((decision: any) => {
+        data.decisions.forEach((decision: { id: string; title: string; summary: string; confidence: number; createdAt: string; sourceLink?: string }) => {
           // Extract issue IID from sourceLink
           // Format: https://gitlab.com/.../issues/IID
           const match = decision.sourceLink?.match(/issues\/(\d+)$/)
           if (match) {
-            const issueIid = parseInt(match[1])
+            const issueIid = parseInt(match[1], 10)
             const decisionDate = new Date(decision.createdAt)
             const hoursSince = (Date.now() - decisionDate.getTime()) / (1000 * 60 * 60)
             
@@ -135,12 +131,10 @@ export default function GitLabProjectDetailPage() {
         
         setExistingDecisions(decisionsMap)
       }
-    } catch (error) {
-      console.error("Failed to check existing decisions:", error)
-    } finally {
-      setCheckingExisting(false)
+    } catch {
+      console.error("Failed to check existing decisions")
     }
-  }
+  }, [])
 
   const analyzeIssue = async (issueIid: number) => {
     // Don't analyze if already recent

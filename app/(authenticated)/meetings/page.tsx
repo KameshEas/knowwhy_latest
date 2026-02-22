@@ -29,6 +29,7 @@ export default function MeetingsPage() {
   const [disconnecting, setDisconnecting] = useState(false)
   const [cancellingId, setCancellingId] = useState<string | null>(null)
   const [analyzingId, setAnalyzingId] = useState<string | null>(null)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [analysisResult, setAnalysisResult] = useState<any>(null)
   const [formData, setFormData] = useState({
     title: "",

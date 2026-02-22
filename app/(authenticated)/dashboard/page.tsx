@@ -3,8 +3,8 @@ import { prisma } from "@/lib/prisma"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
-import { format, subDays, startOfWeek, endOfWeek } from "date-fns"
-import { CheckCircle, Users, Zap, Video, FileText, MessageSquare, GitBranch, TrendingUp, BarChart3, Activity, Clock } from "lucide-react"
+import { format, subDays } from "date-fns"
+import { CheckCircle, Users, Zap, Video, FileText, MessageSquare, GitBranch, TrendingUp, BarChart3, Activity } from "lucide-react"
 
 export default async function DashboardPage() {
   const session = await auth()
@@ -101,7 +101,7 @@ export default async function DashboardPage() {
           Welcome back, {session?.user?.name?.split(" ")[0] || "there"}
         </h1>
         <p className="text-zinc-500 dark:text-zinc-400 mt-2">
-          Here's what's happening with your decisions and meetings.
+          Here&#39;s what&#39;s happening with your decisions and meetings.
         </p>
       </div>
 
@@ -362,7 +362,7 @@ export default async function DashboardPage() {
               <div className="text-sm text-zinc-500 text-center py-8">
                 No decisions captured yet.
                 <br />
-                Connect your meetings to get started!
+                Connect your meetings to get started&#39;!
               </div>
             ) : (
               <div className="space-y-3">

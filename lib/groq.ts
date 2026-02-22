@@ -4,6 +4,38 @@ const groq = new Groq({
   apiKey: process.env.GROQ_API_KEY,
 })
 
+/**
+ * Helper function to parse JSON from LLM response that may be wrapped in markdown code blocks
+ */
+function parseJsonFromResponse(content: string): any {
+  // Try to find JSON inside markdown code blocks
+  const codeBlockMatch = content.match(/```(?:json)?\s*([\s\S]*?)\s*```/)
+  if (codeBlockMatch) {
+    try {
+      return JSON.parse(codeBlockMatch[1])
+    } catch (e) {
+      console.warn("Failed to parse JSON from code block, trying direct parse")
+    }
+  }
+  
+  // Try direct parse
+  try {
+    return JSON.parse(content)
+  } catch (e) {
+    // If direct parse fails, try to extract JSON object from the content
+    const jsonMatch = content.match(/\{[\s\S]*\}/)
+    if (jsonMatch) {
+      try {
+        return JSON.parse(jsonMatch[0])
+      } catch (e2) {
+        console.error("Failed to extract JSON from response:", e2)
+        throw new Error("Invalid JSON response from LLM")
+      }
+    }
+    throw e
+  }
+}
+
 export interface DecisionDetectionResult {
   isDecision: boolean
   confidence: number
@@ -70,9 +102,9 @@ ${transcript}`,
       return { isDecision: false, confidence: 0 }
     }
 
-    // Parse JSON from response
+    // Parse JSON from response (handles markdown code blocks)
     try {
-      const result = JSON.parse(content)
+      const result = parseJsonFromResponse(content)
       return result as DecisionDetectionResult
     } catch (parseError) {
       console.error("Failed to parse Groq response:", parseError)
@@ -150,7 +182,8 @@ Generate a decision brief. REMEMBER: Focus on the FINAL decision stated at the e
       throw new Error("No content from Groq")
     }
 
-    return JSON.parse(content)
+    // Parse JSON from response (handles markdown code blocks)
+    return parseJsonFromResponse(content)
   } catch (error) {
     console.error("Error generating decision brief:", error)
     throw error

@@ -2,9 +2,8 @@
 
 import { useEffect, useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
 import { format } from "date-fns"
-import { FileText, X, ChevronRight, Loader2 } from "lucide-react"
+import { X, ChevronRight, Loader2 } from "lucide-react"
 import { EmptyState } from "@/components/empty-state"
 
 interface Decision {

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { auth } from "@/auth"
 import { prisma } from "@/lib/prisma"
 import { createGoogleCalendarEvent } from "@/lib/google-calendar"

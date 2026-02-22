@@ -1,4 +1,4 @@
-import weaviate, { WeaviateClient, ApiKey } from 'weaviate-ts-client'
+import weaviate, { WeaviateClient } from 'weaviate-ts-client'
 
 // Weaviate client singleton
 let client: WeaviateClient | null = null

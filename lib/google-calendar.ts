@@ -1,5 +1,4 @@
 import { google } from "googleapis"
-import { prisma } from "./prisma"
 
 export interface CalendarEvent {
   id: string

@@ -10,13 +10,15 @@ import {
   Loader2, 
   GitBranch,
   RefreshCw,
-  ExternalLink,
   Lock,
   Globe,
   Calendar,
   FolderGit,
   MessageSquare,
-  ArrowRight
+  ArrowRight,
+  Webhook,
+  CheckCircle,
+  XCircle
 } from "lucide-react"
 import { toast } from "sonner"
 import { EmptyState } from "@/components/empty-state"
@@ -32,12 +34,20 @@ interface GitLabProject {
   webUrl: string
 }
 
+interface ProjectWebhookStatus {
+  [projectId: number]: {
+    configured: boolean
+    loading: boolean
+  }
+}
+
 export default function GitLabProjectsPage() {
   const [projects, setProjects] = useState<GitLabProject[]>([])
   const [filteredProjects, setFilteredProjects] = useState<GitLabProject[]>([])
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState("")
   const [error, setError] = useState<string | null>(null)
+  const [webhookStatus, setWebhookStatus] = useState<ProjectWebhookStatus>({})
 
   const fetchProjects = async () => {
     setLoading(true)
@@ -53,7 +63,7 @@ export default function GitLabProjectsPage() {
         setError(data.error || "Failed to fetch projects")
         toast.error(data.error || "Failed to fetch projects")
       }
-    } catch (error) {
+    } catch {
       setError("Failed to fetch projects")
       toast.error("Failed to fetch projects")
     } finally {
@@ -61,9 +71,82 @@ export default function GitLabProjectsPage() {
     }
   }
 
+  // Check webhook status for all projects
+  const checkWebhookStatus = async () => {
+    try {
+      const response = await fetch("/api/webhooks/gitlab/configure")
+      const data = await response.json()
+      
+      if (data.success && data.projects) {
+        const status: ProjectWebhookStatus = {}
+        data.projects.forEach((project: { id: number; webhookConfigured: boolean }) => {
+          status[project.id] = {
+            configured: project.webhookConfigured,
+            loading: false
+          }
+        })
+        setWebhookStatus(status)
+      }
+    } catch (error) {
+      console.error("Failed to check webhook status:", error)
+    }
+  }
+
+  // Configure webhook for a specific project
+  const configureWebhook = async (projectId: number, projectName: string) => {
+    setWebhookStatus(prev => ({
+      ...prev,
+      [projectId]: { configured: false, loading: true }
+    }))
+
+    try {
+      // Get webhook URL
+      const configResponse = await fetch("/api/webhooks/config")
+      const configData = await configResponse.json()
+      
+      if (!configData.success) {
+        throw new Error("Failed to get webhook URL")
+      }
+
+      const webhookUrl = configData.webhooks.gitlab.url
+
+      const response = await fetch("/api/webhooks/gitlab/configure", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ projectId, webhookUrl })
+      })
+
+      const data = await response.json()
+
+      if (data.success) {
+        toast.success(`Webhook configured for ${projectName}!`)
+        setWebhookStatus(prev => ({
+          ...prev,
+          [projectId]: { configured: true, loading: false }
+        }))
+      } else {
+        throw new Error(data.error || "Failed to configure webhook")
+      }
+    } catch (error) {
+      console.error("Failed to configure webhook:", error)
+      toast.error(error instanceof Error ? error.message : "Failed to configure webhook")
+      setWebhookStatus(prev => ({
+        ...prev,
+        [projectId]: { configured: false, loading: false }
+      }))
+    }
+  }
+
   useEffect(() => {
     fetchProjects()
   }, [])
+
+  // Check webhook status after projects are loaded
+  useEffect(() => {
+    if (projects.length > 0) {
+      checkWebhookStatus()
+    }
+  }, [projects.length])
 
   useEffect(() => {
     if (searchQuery) {
@@ -172,12 +255,47 @@ export default function GitLabProjectsPage() {
                     {project.description}
                   </p>
                 )}
+                
+                {/* Webhook Status */}
+                <div className="flex items-center justify-between pt-2">
+                  <div className="flex items-center gap-2">
+                    {webhookStatus[project.id]?.loading ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin text-orange-600" />
+                        <span className="text-sm text-orange-600">Checking...</span>
+                      </>
+                    ) : webhookStatus[project.id]?.configured ? (
+                      <>
+                        <CheckCircle className="h-4 w-4 text-green-600" />
+                        <span className="text-sm text-green-600">Webhook configured</span>
+                      </>
+                    ) : (
+                      <>
+                        <XCircle className="h-4 w-4 text-zinc-400" />
+                        <span className="text-sm text-zinc-500">No webhook</span>
+                      </>
+                    )}
+                  </div>
+                </div>
+
                 <div className="flex items-center justify-between pt-2 text-sm">
                   <div className="flex items-center gap-1 text-orange-600">
                     <Calendar className="h-4 w-4" />
                     {formatDate(project.createdAt)}
                   </div>
                   <div className="flex gap-2">
+                    {/* Configure Webhook Button */}
+                    {!webhookStatus[project.id]?.configured && !webhookStatus[project.id]?.loading && (
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={() => configureWebhook(project.id, project.name)}
+                        className="text-orange-600 border-orange-300 hover:bg-orange-50"
+                      >
+                        <Webhook className="mr-1 h-4 w-4" />
+                        Configure
+                      </Button>
+                    )}
                     <Link href={`/gitlab/${project.id}`}>
                       <Button variant="ghost" size="sm" className="text-orange-600 hover:text-orange-700 hover:bg-orange-50">
                         <MessageSquare className="mr-1 h-4 w-4" />

@@ -20,7 +20,7 @@ export default function LoginPage() {
         </CardHeader>
         <CardContent>
           <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-6 text-center">
-            Sign in to capture and recall your team's decisions. Never lose track of why decisions were made.
+            Sign in to capture and recall your team&#39;s decisions. Never lose track of why decisions were made.
           </p>
           <form
             action={async () => {

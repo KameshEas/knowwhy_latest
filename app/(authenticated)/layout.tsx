@@ -1,7 +1,6 @@
 import { auth } from "@/auth"
 import { redirect } from "next/navigation"
 import { SidebarNav } from "@/components/sidebar-nav"
-import { UserNav } from "@/components/user-nav"
 
 export default async function AuthenticatedLayout({
   children,

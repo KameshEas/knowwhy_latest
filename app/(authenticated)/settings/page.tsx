@@ -22,11 +22,8 @@ import {
   ExternalLink,
   AlertCircle,
   Activity,
-  Clock,
-  Filter,
   ChevronLeft,
-  ChevronRight,
-  AlertTriangle
+  ChevronRight
 } from "lucide-react"
 import { toast } from "sonner"
 
