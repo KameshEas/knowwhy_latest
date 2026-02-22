@@ -1,6 +1,37 @@
 version: '3.8'
 
 services:
+  # Next.js Application
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: knowwhy-app
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=postgresql://knowwhy:knowwhy_password@postgres:5432/knowwhy
+      - NEXTAUTH_URL=http://localhost:3000
+      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
+      - GROQ_API_KEY=${GROQ_API_KEY}
+      - SLACK_CLIENT_ID=${SLACK_CLIENT_ID}
+      - SLACK_CLIENT_SECRET=${SLACK_CLIENT_SECRET}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+      - WEAVIATE_URL=http://weaviate:8080
+      - OLLAMA_BASE_URL=http://ollama:11434
+    depends_on:
+      postgres:
+        condition: service_healthy
+      weaviate:
+        condition: service_healthy
+    restart: unless-stopped
+    volumes:
+      - nextjs_data:/app/data
+
+  # PostgreSQL Database
   postgres:
     image: postgres:16-alpine
     container_name: knowwhy-db
@@ -18,5 +49,51 @@ services:
       timeout: 5s
       retries: 5
 
+  # Weaviate Vector Database
+  weaviate:
+    image: semitechnologies/weaviate:1.25.6
+    container_name: knowwhy-weaviate
+    ports:
+      - "8080:8080"
+    environment:
+      QUERY_DEFAULTS_LIMIT: 25
+      AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED: 'true'
+      PERSISTENCE_DATA_PATH: '/var/lib/weaviate'
+      ENABLE_MODULES: 'text2vec-ollama'
+      CLUSTER_HOSTNAME: 'node1'
+      OLLAMA_BASE_URL: 'http://ollama:11434'
+      TEXT2VEC_OLLAMA_MODEL: 'mxbai-embed-large'
+      TEXT2VEC_OLLAMA_VECTORIZE_CLASS_NAME: 'Decision'
+    volumes:
+      - weaviate_data:/var/lib/weaviate
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/v1/meta"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Ollama for Local Embeddings
+  ollama:
+    image: ollama/ollama:latest
+    container_name: knowwhy-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    environment:
+      - OLLAMA_HOST=0.0.0.0
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 8G
+
 volumes:
   postgres_data:
+  weaviate_data:
+  ollama_data:
+  nextjs_data:

@@ -59,3 +59,4 @@ Thumbs.db
 /docker-compose.override.yml
 *.log
 md
+package-lock.json

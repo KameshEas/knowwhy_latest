@@ -119,12 +119,19 @@ model Decision {
   timestamp        DateTime @default(now())
   createdAt        DateTime @default(now()) @map("created_at")
   updatedAt        DateTime @updatedAt @map("updated_at")
+  
+  // Evaluation & Feedback fields
+  embeddingSynced  Boolean  @default(false) @map("embedding_synced")
+  userRating      Int?     @map("user_rating") // 1-5 user rating of decision quality
+  feedbackNote    String?  @map("feedback_note") @db.Text
+  verifiedCorrect Boolean? @map("verified_correct") // Admin/verified flag
 
   user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   meeting Meeting? @relation(fields: [meetingId], references: [id])
 
   @@index([userId])
   @@index([timestamp])
+  @@index([embeddingSynced])
   @@map("decisions")
 }
 

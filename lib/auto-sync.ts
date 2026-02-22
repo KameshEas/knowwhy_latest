@@ -3,6 +3,7 @@ import { getSlackChannels, getSlackChannelMessages } from "./slack"
 import { getGitLabProjects, getGitLabIssues, getGitLabIssueNotes } from "./gitlab"
 import { getCalendarEvents } from "./google-calendar"
 import { detectDecision, generateDecisionBrief } from "./groq"
+import { addDecisionToWeaviate, ensureDecisionSchema } from "./weaviate"
 
 interface SyncResult {
   source: string
@@ -333,4 +334,73 @@ async function autoSyncGoogleMeet(userId: string): Promise<SyncResult> {
   }
 
   return { source: "meet", itemsProcessed, decisionsFound }
+}
+
+/**
+ * Sync embeddings for all unsynced decisions to Weaviate
+ */
+export async function syncEmbeddingsToWeaviate(userId: string): Promise<{
+  synced: number
+  failed: number
+}> {
+  console.log(`[EmbeddingSync] Starting embedding sync for user: ${userId}`)
+  
+  let synced = 0
+  let failed = 0
+
+  // Ensure Weaviate schema exists
+  const schemaReady = await ensureDecisionSchema()
+  if (!schemaReady) {
+    console.error('[EmbeddingSync] Failed to ensure Weaviate schema')
+    return { synced: 0, failed: 0 }
+  }
+
+  // Get unsynced decisions
+  const unsyncedDecisions = await prisma.decision.findMany({
+    where: {
+      userId,
+      embeddingSynced: false,
+    },
+    take: 50, // Process in batches
+  })
+
+  console.log(`[EmbeddingSync] Found ${unsyncedDecisions.length} unsynced decisions`)
+
+  for (const decision of unsyncedDecisions) {
+    try {
+      const success = await addDecisionToWeaviate({
+        id: decision.id,
+        userId: decision.userId,
+        title: decision.title,
+        summary: decision.summary,
+        problemStatement: decision.problemStatement,
+        optionsDiscussed: decision.optionsDiscussed,
+        finalDecision: decision.finalDecision,
+        rationale: decision.rationale,
+        actionItems: decision.actionItems,
+        source: decision.source,
+        sourceLink: decision.sourceLink || undefined,
+        timestamp: decision.timestamp,
+      })
+
+      if (success) {
+        // Mark as synced in database
+        await prisma.decision.update({
+          where: { id: decision.id },
+          data: { embeddingSynced: true },
+        })
+        synced++
+        console.log(`[EmbeddingSync] ✅ Synced decision: ${decision.title}`)
+      } else {
+        failed++
+        console.error(`[EmbeddingSync] ❌ Failed to sync decision: ${decision.title}`)
+      }
+    } catch (error) {
+      failed++
+      console.error(`[EmbeddingSync] Error syncing decision ${decision.id}:`, error)
+    }
+  }
+
+  console.log(`[EmbeddingSync] Complete: ${synced} synced, ${failed} failed`)
+  return { synced, failed }
 }
