@@ -94,6 +94,41 @@ export default async function DashboardPage() {
     count: d._count
   }))
 
+  // Simple setup checklist for new users
+  const setupSteps = [
+    {
+      id: 1,
+      label: "Connect Google Meet",
+      description: "Sync your calendar meetings so AI can detect decisions.",
+      completed: meetingCount > 0,
+      href: "/meetings",
+    },
+    {
+      id: 2,
+      label: "Connect Slack",
+      description: "Analyze important channel conversations for decisions.",
+      completed: !!slackIntegration,
+      href: "/slack",
+    },
+    {
+      id: 3,
+      label: "Connect GitLab",
+      description: "Capture decisions from issues and merge requests.",
+      completed: !!gitlabIntegration,
+      href: "/gitlab",
+    },
+    {
+      id: 4,
+      label: "Capture your first decision",
+      description: "Review AI-detected decisions or add one manually.",
+      completed: decisionCount > 0,
+      href: "/decisions",
+    },
+  ] as const
+
+  const completedSteps = setupSteps.filter((step) => step.completed).length
+  const setupProgress = Math.round((completedSteps / setupSteps.length) * 100)
+
   return (
     <div className="space-y-8">
       <div>
@@ -104,6 +139,69 @@ export default async function DashboardPage() {
           Here&#39;s what&#39;s happening with your decisions and meetings.
         </p>
       </div>
+
+      {/* Getting Started Checklist */}
+      <Card className="border-blue-100 bg-blue-50/40 dark:border-blue-900 dark:bg-blue-950/20">
+        <CardHeader className="flex flex-row items-center justify-between gap-4">
+          <div>
+            <CardTitle className="text-blue-900 dark:text-blue-100 flex items-center gap-2">
+              <CheckCircle className="h-5 w-5 text-blue-600" />
+              Getting started with KnowWhy
+            </CardTitle>
+            <CardDescription className="mt-1">
+              Complete these steps to start capturing high-quality decisions.
+            </CardDescription>
+          </div>
+          <div className="hidden md:flex flex-col items-end gap-1">
+            <span className="text-sm font-medium text-blue-900 dark:text-blue-100">
+              {completedSteps === setupSteps.length
+                ? "Setup complete"
+                : `${completedSteps}/${setupSteps.length} steps done`}
+            </span>
+            <div className="w-40 h-2 bg-blue-100 dark:bg-blue-900/40 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-blue-600 rounded-full transition-all"
+                style={{ width: `${setupProgress}%` }}
+              />
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {setupSteps.map((step) => (
+            <div
+              key={step.id}
+              className="flex items-start justify-between gap-4 rounded-md px-2 py-2 hover:bg-blue-100/60 dark:hover:bg-blue-900/40 transition-colors"
+            >
+              <div className="flex items-start gap-3">
+                <span className="mt-1 inline-flex h-4 w-4 items-center justify-center">
+                  {step.completed ? (
+                    <CheckCircle className="h-4 w-4 text-green-600" />
+                  ) : (
+                    <span className="h-2 w-2 rounded-full bg-blue-400" />
+                  )}
+                </span>
+                <div>
+                  <p className="text-sm font-medium text-blue-900 dark:text-blue-50">
+                    {step.label}
+                  </p>
+                  <p className="text-xs text-zinc-600 dark:text-zinc-400 mt-0.5">
+                    {step.description}
+                  </p>
+                </div>
+              </div>
+              <Link href={step.href} className="shrink-0">
+                <Button
+                  size="sm"
+                  variant={step.completed ? "outline" : "default"}
+                  className={step.completed ? "" : "bg-blue-600 hover:bg-blue-700 text-white"}
+                >
+                  {step.completed ? "View" : "Start"}
+                </Button>
+              </Link>
+            </div>
+          ))}
+        </CardContent>
+      </Card>
 
       {/* Stats Row with Blue Accents */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">

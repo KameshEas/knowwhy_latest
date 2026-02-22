@@ -203,6 +203,9 @@ export default function GitLabProjectsPage() {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-10 border-orange-200 focus:border-orange-500"
+              label="Search GitLab projects"
+              labelVisible={false}
+              aria-label="Search GitLab projects"
             />
           </div>
         </div>
@@ -230,8 +233,12 @@ export default function GitLabProjectsPage() {
           </CardContent>
         </Card>
       ) : (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {filteredProjects.map((project) => (
+        <>
+          <p className="text-xs text-zinc-500 mb-2">
+            Showing {filteredProjects.length} of {projects.length} projects
+          </p>
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {filteredProjects.map((project) => (
             <Card key={project.id} className="hover:shadow-lg hover:border-orange-300 transition-all border-2 border-transparent">
               <CardHeader className="pb-3">
                 <div className="flex items-start justify-between">
@@ -306,8 +313,9 @@ export default function GitLabProjectsPage() {
                 </div>
               </CardContent>
             </Card>
-          ))}
-        </div>
+            ))}
+          </div>
+        </>
       )}
     </div>
   )

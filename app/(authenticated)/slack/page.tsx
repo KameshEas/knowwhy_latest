@@ -116,6 +116,9 @@ export default function SlackChannelsPage() {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-10 border-purple-200 focus:border-purple-500"
+              label="Search Slack channels"
+              labelVisible={false}
+              aria-label="Search Slack channels"
             />
           </div>
         </div>
@@ -143,8 +146,12 @@ export default function SlackChannelsPage() {
           </CardContent>
         </Card>
       ) : (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {filteredChannels.map((channel) => (
+        <>
+          <p className="text-xs text-zinc-500 mb-2">
+            Showing {filteredChannels.length} of {channels.length} channels
+          </p>
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {filteredChannels.map((channel) => (
             <Card key={channel.id} className="hover:shadow-lg hover:border-purple-300 transition-all border-2 border-transparent">
               <CardHeader className="pb-3">
                 <div className="flex items-start justify-between">
@@ -188,8 +195,9 @@ export default function SlackChannelsPage() {
                 </div>
               </CardContent>
             </Card>
-          ))}
-        </div>
+            ))}
+          </div>
+        </>
       )}
     </div>
   )

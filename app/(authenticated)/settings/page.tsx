@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Separator } from "@/components/ui/separator"
+import Link from "next/link"
 import { 
   Loader2, 
   CheckCircle2, 
@@ -396,6 +397,18 @@ export default function SettingsPage() {
               <p className="text-sm text-zinc-500 mb-4">
                 Connect Slack to analyze channel conversations and detect decisions made in team discussions.
               </p>
+              <p className="text-xs text-zinc-500 mb-4">
+                After connecting, visit
+                {" "}
+                <Link
+                  href="/slack"
+                  className="text-purple-600 hover:text-purple-700 underline-offset-2 hover:underline"
+                >
+                  Slack analysis
+                </Link>
+                {" "}
+                to run channel analyses.
+              </p>
               
               {status.slack && slackInfo ? (
                 <div className="space-y-4">
@@ -480,6 +493,18 @@ export default function SettingsPage() {
             <CardContent>
               <p className="text-sm text-zinc-500 mb-4">
                 Connect GitLab to analyze merge request discussions and issues for decisions.
+              </p>
+              <p className="text-xs text-zinc-500 mb-4">
+                After connecting, go to
+                {" "}
+                <Link
+                  href="/gitlab"
+                  className="text-orange-600 hover:text-orange-700 underline-offset-2 hover:underline"
+                >
+                  GitLab projects
+                </Link>
+                {" "}
+                to explore and analyze repositories.
               </p>
               
               {status.gitlab && gitlabInfo ? (
@@ -762,32 +787,44 @@ export default function SettingsPage() {
                 </div>
                 
                 {/* Filters */}
-                <div className="flex gap-2 flex-wrap">
-                  <select 
-                    className="px-3 py-2 text-sm border rounded-lg bg-zinc-50 dark:bg-zinc-900"
-                    onChange={(e) => {
-                      const value = e.target.value
-                      setLogsFilter(prev => ({ ...prev, source: value || undefined }))
-                      fetchWebhookLogs({ ...logsFilter, source: value || undefined })
-                    }}
-                  >
-                    <option value="">All Sources</option>
-                    <option value="slack">Slack</option>
-                    <option value="gitlab">GitLab</option>
-                  </select>
-                  <select 
-                    className="px-3 py-2 text-sm border rounded-lg bg-zinc-50 dark:bg-zinc-900"
-                    onChange={(e) => {
-                      const value = e.target.value
-                      setLogsFilter(prev => ({ ...prev, status: value || undefined }))
-                      fetchWebhookLogs({ ...logsFilter, status: value || undefined })
-                    }}
-                  >
-                    <option value="">All Status</option>
-                    <option value="processed">Processed</option>
-                    <option value="pending">Pending</option>
-                    <option value="failed">Failed</option>
-                  </select>
+                <div className="flex gap-2 flex-wrap items-center">
+                  <div className="flex items-center gap-1">
+                    <label htmlFor="logs-source-filter" className="sr-only">
+                      Filter by source
+                    </label>
+                    <select 
+                      id="logs-source-filter"
+                      className="px-3 py-2 text-sm border rounded-lg bg-zinc-50 dark:bg-zinc-900"
+                      onChange={(e) => {
+                        const value = e.target.value
+                        setLogsFilter(prev => ({ ...prev, source: value || undefined }))
+                        fetchWebhookLogs({ ...logsFilter, source: value || undefined })
+                      }}
+                    >
+                      <option value="">All Sources</option>
+                      <option value="slack">Slack</option>
+                      <option value="gitlab">GitLab</option>
+                    </select>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <label htmlFor="logs-status-filter" className="sr-only">
+                      Filter by status
+                    </label>
+                    <select 
+                      id="logs-status-filter"
+                      className="px-3 py-2 text-sm border rounded-lg bg-zinc-50 dark:bg-zinc-900"
+                      onChange={(e) => {
+                        const value = e.target.value
+                        setLogsFilter(prev => ({ ...prev, status: value || undefined }))
+                        fetchWebhookLogs({ ...logsFilter, status: value || undefined })
+                      }}
+                    >
+                      <option value="">All Status</option>
+                      <option value="processed">Processed</option>
+                      <option value="pending">Pending</option>
+                      <option value="failed">Failed</option>
+                    </select>
+                  </div>
                   <Button 
                     variant="outline" 
                     size="sm"

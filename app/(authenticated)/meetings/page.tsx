@@ -181,21 +181,26 @@ export default function MeetingsPage() {
     fetchMeetings()
   }, [])
 
+  const hasMeetings = meetings.length > 0
+
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Meetings</h1>
           <p className="text-zinc-500 dark:text-zinc-400 mt-2">
-            Connect and manage your Google Meet sessions.
+            {hasMeetings
+              ? "Review and analyze your Google Meet sessions for decisions."
+              : "Start by syncing your calendar or creating a new meeting."}
           </p>
         </div>
         <div className="flex gap-2">
-          <Button onClick={() => setShowCreateModal(true)} variant="outline">
-            <Plus className="mr-2 h-4 w-4" />
-            Create Meeting
-          </Button>
-          <Button onClick={syncMeetings} disabled={syncing}>
+          <Button
+            onClick={syncMeetings}
+            disabled={syncing}
+            variant={hasMeetings ? "outline" : "default"}
+            className={!hasMeetings ? "bg-blue-600 hover:bg-blue-700 text-white" : undefined}
+          >
             {syncing ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -207,6 +212,13 @@ export default function MeetingsPage() {
                 Sync Meetings
               </>
             )}
+          </Button>
+          <Button
+            onClick={() => setShowCreateModal(true)}
+            variant={hasMeetings ? "default" : "outline"}
+          >
+            <Plus className="mr-2 h-4 w-4" />
+            Create Meeting
           </Button>
         </div>
       </div>
@@ -449,6 +461,9 @@ export default function MeetingsPage() {
             </div>
           ) : (
             <div className="space-y-4">
+              <p className="text-xs text-zinc-500">
+                Showing {meetings.length} connected meeting{meetings.length === 1 ? "" : "s"}
+              </p>
               {meetings.map((meeting) => (
                 <div
                   key={meeting.id}

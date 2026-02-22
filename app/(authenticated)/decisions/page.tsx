@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
 import { format } from "date-fns"
 import { X, ChevronRight, Loader2 } from "lucide-react"
 import { EmptyState } from "@/components/empty-state"
@@ -31,6 +32,7 @@ export default function DecisionsPage() {
   const [decisions, setDecisions] = useState<Decision[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedDecision, setSelectedDecision] = useState<Decision | null>(null)
+  const [sourceFilter, setSourceFilter] = useState<"all" | "meeting" | "slack" | "gitlab">("all")
 
   const fetchDecisions = async () => {
     try {
@@ -88,6 +90,11 @@ export default function DecisionsPage() {
   useEffect(() => {
     fetchDecisions()
   }, [])
+
+  const filteredDecisions =
+    sourceFilter === "all"
+      ? decisions
+      : decisions.filter((decision) => decision.source === sourceFilter)
 
   return (
     <div className="space-y-6">
@@ -205,52 +212,81 @@ export default function DecisionsPage() {
         <EmptyState type="decisions" onDemoData={loadDemoData} />
       ) : (
         <Card className="border-blue-100 dark:border-blue-900">
-          <CardHeader>
-            <CardTitle className="text-blue-900 dark:text-blue-100">Decision Library</CardTitle>
-            <CardDescription>
-              AI-analyzed decisions from your meetings
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {decisions.map((decision) => (
-                <div
-                  key={decision.id}
-                  className="p-4 border border-zinc-200 dark:border-zinc-800 rounded-lg hover:border-blue-300 dark:hover:border-blue-700 hover:bg-blue-50/50 dark:hover:bg-blue-900/10 cursor-pointer transition-all"
-                  onClick={() => setSelectedDecision(decision)}
+          <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <CardTitle className="text-blue-900 dark:text-blue-100">Decision Library</CardTitle>
+              <CardDescription>
+                AI-analyzed decisions from your meetings and conversations
+              </CardDescription>
+            </div>
+            <div className="flex flex-wrap gap-2 mt-2 sm:mt-0">
+              {[
+                { label: "All sources", value: "all" as const },
+                { label: "Meetings", value: "meeting" as const },
+                { label: "Slack", value: "slack" as const },
+                { label: "GitLab", value: "gitlab" as const },
+              ].map((option) => (
+                <Button
+                  key={option.value}
+                  size="sm"
+                  variant={sourceFilter === option.value ? "default" : "outline"}
+                  onClick={() => setSourceFilter(option.value)}
+                  aria-pressed={sourceFilter === option.value}
                 >
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <h3 className="font-medium text-blue-900 dark:text-blue-100">{decision.title}</h3>
-                      <p className="text-sm text-zinc-500 mt-1 line-clamp-2">{decision.summary}</p>
-                      <div className="flex items-center gap-2 mt-2 text-xs text-zinc-400">
-                        <span>{format(new Date(decision.createdAt), "PPP")}</span>
-                        {decision.meeting && (
-                          <>
-                            <span>•</span>
-                            <span>{decision.meeting.title}</span>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span
-                        className={`px-2 py-1 rounded-full text-xs font-medium ${
-                          decision.confidence >= 0.8
-                            ? "bg-blue-100 text-blue-800 border border-blue-200"
-                            : decision.confidence >= 0.6
-                            ? "bg-yellow-100 text-yellow-800 border border-yellow-200"
-                            : "bg-gray-100 text-gray-800 border border-gray-200"
-                        }`}
-                      >
-                        {Math.round(decision.confidence * 100)}% confidence
-                      </span>
-                      <ChevronRight className="w-5 h-5 text-zinc-400" />
-                    </div>
-                  </div>
-                </div>
+                  {option.label}
+                </Button>
               ))}
             </div>
+          </CardHeader>
+          <CardContent>
+            {filteredDecisions.length === 0 ? (
+              <p className="py-8 text-center text-sm text-zinc-500">
+                No decisions found for this source yet. Try another filter.
+              </p>
+            ) : (
+              <div className="space-y-4">
+                <p className="text-xs text-zinc-500">
+                  Showing {filteredDecisions.length} of {decisions.length} decisions
+                </p>
+                {filteredDecisions.map((decision) => (
+                  <div
+                    key={decision.id}
+                    className="p-4 border border-zinc-200 dark:border-zinc-800 rounded-lg hover:border-blue-300 dark:hover:border-blue-700 hover:bg-blue-50/50 dark:hover:bg-blue-900/10 cursor-pointer transition-all"
+                    onClick={() => setSelectedDecision(decision)}
+                  >
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <h3 className="font-medium text-blue-900 dark:text-blue-100">{decision.title}</h3>
+                        <p className="text-sm text-zinc-500 mt-1 line-clamp-2">{decision.summary}</p>
+                        <div className="flex items-center gap-2 mt-2 text-xs text-zinc-400">
+                          <span>{format(new Date(decision.createdAt), "PPP")}</span>
+                          {decision.meeting && (
+                            <>
+                              <span>•</span>
+                              <span>{decision.meeting.title}</span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={`px-2 py-1 rounded-full text-xs font-medium ${
+                            decision.confidence >= 0.8
+                              ? "bg-blue-100 text-blue-800 border border-blue-200"
+                              : decision.confidence >= 0.6
+                              ? "bg-yellow-100 text-yellow-800 border border-yellow-200"
+                              : "bg-gray-100 text-gray-800 border border-gray-200"
+                          }`}
+                        >
+                          {Math.round(decision.confidence * 100)}% confidence
+                        </span>
+                        <ChevronRight className="w-5 h-5 text-zinc-400" />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
       )}

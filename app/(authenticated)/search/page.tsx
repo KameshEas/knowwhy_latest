@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { format } from "date-fns"
 import { Search, MessageCircle, Loader2, ArrowRight, FileText } from "lucide-react"
 
@@ -121,13 +122,15 @@ export default function SearchPage() {
         <CardContent>
           <form onSubmit={handleSearch} className="space-y-4">
             <div className="flex gap-2">
-              <input
+              <Input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search decisions... (e.g., 'architecture', 'pricing', 'team structure')"
                 aria-label="Search decisions"
-                className="flex-1 px-4 py-2 border rounded-md dark:bg-zinc-900 dark:border-zinc-700"
+                label="Search decisions"
+                labelVisible={false}
+                className="flex-1"
               />
               <Button type="submit" disabled={searching}>
                 {searching ? (
@@ -207,13 +210,15 @@ export default function SearchPage() {
         <CardContent>
           <form onSubmit={handleAsk} className="space-y-4">
             <div className="flex gap-2">
-              <input
+              <Input
                 type="text"
                 value={question}
                 onChange={(e) => setQuestion(e.target.value)}
                 placeholder="Ask something... (e.g., 'Why did we choose React?', 'What was decided about pricing?')"
                 aria-label="Ask a question"
-                className="flex-1 px-4 py-2 border rounded-md dark:bg-zinc-900 dark:border-zinc-700"
+                label="Ask a question"
+                labelVisible={false}
+                className="flex-1"
               />
               <Button type="submit" disabled={asking}>
                 {asking ? (
