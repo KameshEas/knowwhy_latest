@@ -20,7 +20,13 @@ import {
   Check,
   Webhook,
   ExternalLink,
-  AlertCircle
+  AlertCircle,
+  Activity,
+  Clock,
+  Filter,
+  ChevronLeft,
+  ChevronRight,
+  AlertTriangle
 } from "lucide-react"
 import { toast } from "sonner"
 
@@ -68,6 +74,19 @@ interface WebhookConfig {
   }
 }
 
+interface WebhookLogEntry {
+  id: string
+  source: string
+  eventType: string
+  status: string
+  decisionId?: string
+  decisionTitle?: string
+  confidence?: number
+  errorMessage?: string
+  processedAt?: string
+  createdAt: string
+}
+
 export default function SettingsPage() {
   const [status, setStatus] = useState<IntegrationStatus>({
     google: false,
@@ -83,6 +102,12 @@ export default function SettingsPage() {
   const [copiedField, setCopiedField] = useState<string | null>(null)
   const [testingWebhook, setTestingWebhook] = useState<string | null>(null)
   const [testResults, setTestResults] = useState<{slack?: any, gitlab?: any}>({})
+  
+  // Webhook logs state
+  const [webhookLogs, setWebhookLogs] = useState<WebhookLogEntry[]>([])
+  const [logsLoading, setLogsLoading] = useState(false)
+  const [logsFilter, setLogsFilter] = useState<{source?: string, status?: string}>({})
+  const [logsPagination, setLogsPagination] = useState({ total: 0, limit: 20, offset: 0, hasMore: false })
 
   const fetchStatus = async () => {
     try {
@@ -260,6 +285,34 @@ export default function SettingsPage() {
       setTestingWebhook(null)
     }
   }
+
+  const fetchWebhookLogs = async (filter?: {source?: string, status?: string, offset?: number}) => {
+    setLogsLoading(true)
+    try {
+      const params = new URLSearchParams()
+      if (filter?.source) params.set("source", filter.source)
+      if (filter?.status) params.set("status", filter.status)
+      if (filter?.offset) params.set("offset", filter.offset.toString())
+      params.set("limit", "20")
+      
+      const response = await fetch(`/api/webhooks/logs?${params.toString()}`)
+      const data = await response.json()
+      
+      if (data.success) {
+        setWebhookLogs(data.logs)
+        setLogsPagination(prev => ({ ...prev, ...data.pagination }))
+      }
+    } catch (error) {
+      console.error("Error fetching webhook logs:", error)
+    } finally {
+      setLogsLoading(false)
+    }
+  }
+
+  // Load webhook logs when webhooks tab is selected
+  useEffect(() => {
+    fetchWebhookLogs()
+  }, [])
 
   return (
     <div className="space-y-6">
@@ -698,6 +751,158 @@ export default function SettingsPage() {
                   All webhook requests are verified using signature tokens. Make sure to set the following 
                   environment variables: <code className="bg-zinc-100 dark:bg-zinc-800 px-1 py-0.5 rounded text-xs">SLACK_SIGNING_SECRET</code> and <code className="bg-zinc-100 dark:bg-zinc-800 px-1 py-0.5 rounded text-xs">GITLAB_WEBHOOK_SECRET</code>
                 </p>
+              </div>
+
+              <Separator />
+
+              {/* Webhook Logs Section */}
+              <div className="space-y-4">
+                <div className="flex items-center gap-2">
+                  <Activity className="w-5 h-5 text-indigo-600" />
+                  <h3 className="font-medium">Delivery History</h3>
+                </div>
+                
+                {/* Filters */}
+                <div className="flex gap-2 flex-wrap">
+                  <select 
+                    className="px-3 py-2 text-sm border rounded-lg bg-zinc-50 dark:bg-zinc-900"
+                    onChange={(e) => {
+                      const value = e.target.value
+                      setLogsFilter(prev => ({ ...prev, source: value || undefined }))
+                      fetchWebhookLogs({ ...logsFilter, source: value || undefined })
+                    }}
+                  >
+                    <option value="">All Sources</option>
+                    <option value="slack">Slack</option>
+                    <option value="gitlab">GitLab</option>
+                  </select>
+                  <select 
+                    className="px-3 py-2 text-sm border rounded-lg bg-zinc-50 dark:bg-zinc-900"
+                    onChange={(e) => {
+                      const value = e.target.value
+                      setLogsFilter(prev => ({ ...prev, status: value || undefined }))
+                      fetchWebhookLogs({ ...logsFilter, status: value || undefined })
+                    }}
+                  >
+                    <option value="">All Status</option>
+                    <option value="processed">Processed</option>
+                    <option value="pending">Pending</option>
+                    <option value="failed">Failed</option>
+                  </select>
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => fetchWebhookLogs()}
+                    disabled={logsLoading}
+                  >
+                    <RefreshCw className={`h-4 w-4 mr-2 ${logsLoading ? 'animate-spin' : ''}`} />
+                    Refresh
+                  </Button>
+                </div>
+
+                {/* Logs Table */}
+                <div className="border rounded-lg overflow-hidden">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead className="bg-zinc-50 dark:bg-zinc-900">
+                        <tr>
+                          <th className="px-4 py-2 text-left font-medium">Source</th>
+                          <th className="px-4 py-2 text-left font-medium">Event</th>
+                          <th className="px-4 py-2 text-left font-medium">Status</th>
+                          <th className="px-4 py-2 text-left font-medium">Decision</th>
+                          <th className="px-4 py-2 text-left font-medium">Time</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {logsLoading ? (
+                          <tr>
+                            <td colSpan={5} className="px-4 py-8 text-center text-zinc-500">
+                              <Loader2 className="h-5 w-5 animate-spin mx-auto" />
+                            </td>
+                          </tr>
+                        ) : webhookLogs.length === 0 ? (
+                          <tr>
+                            <td colSpan={5} className="px-4 py-8 text-center text-zinc-500">
+                              No webhook deliveries yet
+                            </td>
+                          </tr>
+                        ) : (
+                          webhookLogs.map((log) => (
+                            <tr key={log.id} className="border-t">
+                              <td className="px-4 py-2">
+                                <div className="flex items-center gap-2">
+                                  {log.source === 'slack' && <MessageSquare className="h-4 w-4 text-purple-600" />}
+                                  {log.source === 'gitlab' && <GitBranch className="h-4 w-4 text-orange-600" />}
+                                  <span className="capitalize">{log.source}</span>
+                                </div>
+                              </td>
+                              <td className="px-4 py-2 text-zinc-600">{log.eventType}</td>
+                              <td className="px-4 py-2">
+                                <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                                  log.status === 'processed' ? 'bg-green-100 text-green-700' :
+                                  log.status === 'failed' ? 'bg-red-100 text-red-700' :
+                                  'bg-yellow-100 text-yellow-700'
+                                }`}>
+                                  {log.status}
+                                </span>
+                              </td>
+                              <td className="px-4 py-2">
+                                {log.decisionTitle ? (
+                                  <div>
+                                    <p className="text-sm font-medium truncate max-w-[200px]">{log.decisionTitle}</p>
+                                    {log.confidence && (
+                                      <p className="text-xs text-zinc-500">{Math.round(log.confidence * 100)}% confidence</p>
+                                    )}
+                                  </div>
+                                ) : log.errorMessage ? (
+                                  <p className="text-xs text-red-600 truncate max-w-[200px]">{log.errorMessage}</p>
+                                ) : (
+                                  <span className="text-zinc-400">-</span>
+                                )}
+                              </td>
+                              <td className="px-4 py-2 text-zinc-500 text-xs">
+                                {new Date(log.createdAt).toLocaleString()}
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                {/* Pagination */}
+                {logsPagination.total > logsPagination.limit && (
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm text-zinc-500">
+                      Showing {webhookLogs.length} of {logsPagination.total} entries
+                    </p>
+                    <div className="flex gap-2">
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        disabled={logsPagination.offset === 0}
+                        onClick={() => {
+                          const newOffset = Math.max(0, logsPagination.offset - logsPagination.limit)
+                          fetchWebhookLogs({...logsFilter, offset: newOffset})
+                        }}
+                      >
+                        <ChevronLeft className="h-4 w-4" />
+                      </Button>
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        disabled={!logsPagination.hasMore}
+                        onClick={() => {
+                          const newOffset = logsPagination.offset + logsPagination.limit
+                          fetchWebhookLogs({...logsFilter, offset: newOffset})
+                        }}
+                      >
+                        <ChevronRight className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
