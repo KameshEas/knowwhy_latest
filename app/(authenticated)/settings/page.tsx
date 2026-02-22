@@ -609,6 +609,7 @@ export default function SettingsPage() {
                       <Button 
                         variant="outline" 
                         size="icon"
+                        aria-label="Copy Slack webhook URL"
                         onClick={() => copyToClipboard(webhookConfig?.webhooks?.slack?.url || "", "slack-url")}
                       >
                         {copiedField === "slack-url" ? (
@@ -691,6 +692,7 @@ export default function SettingsPage() {
                       <Button 
                         variant="outline" 
                         size="icon"
+                        aria-label="Copy GitLab webhook URL"
                         onClick={() => copyToClipboard(webhookConfig?.webhooks?.gitlab?.url || "", "gitlab-url")}
                       >
                         {copiedField === "gitlab-url" ? (

@@ -399,7 +399,7 @@ export default function GitLabProjectDetailPage() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
           <Link href="/gitlab">
-            <Button variant="outline" size="icon" className="hover:bg-orange-50 hover:border-orange-300">
+            <Button variant="outline" size="icon" className="hover:bg-orange-50 hover:border-orange-300" aria-label="Back to projects">
               <ArrowLeft className="h-4 w-4 text-orange-600" />
             </Button>
           </Link>
