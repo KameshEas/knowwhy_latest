@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { format } from "date-fns"
@@ -38,14 +38,30 @@ export default function SearchPage() {
   const [asking, setAsking] = useState(false)
   const [hasSearched, setHasSearched] = useState(false)
 
+  // Debounce searchQuery changes to reduce API calls
+  useEffect(() => {
+    const id = setTimeout(() => {
+      if (searchQuery.trim()) {
+        performSearch(searchQuery)
+        setHasSearched(true)
+      }
+    }, 300)
+    return () => clearTimeout(id)
+  }, [searchQuery])
+
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!searchQuery.trim()) return
 
-    setSearching(true)
     setHasSearched(true)
+    await performSearch(searchQuery)
+  }
+
+  const performSearch = async (query: string) => {
+    if (!query.trim()) return
+    setSearching(true)
     try {
-      const response = await fetch(`/api/search?q=${encodeURIComponent(searchQuery)}`)
+      const response = await fetch(`/api/search?q=${encodeURIComponent(query)}`)
       const data = await response.json()
       if (data.decisions) {
         setSearchResults(data.decisions)
@@ -110,6 +126,7 @@ export default function SearchPage() {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search decisions... (e.g., 'architecture', 'pricing', 'team structure')"
+                aria-label="Search decisions"
                 className="flex-1 px-4 py-2 border rounded-md dark:bg-zinc-900 dark:border-zinc-700"
               />
               <Button type="submit" disabled={searching}>
@@ -195,6 +212,7 @@ export default function SearchPage() {
                 value={question}
                 onChange={(e) => setQuestion(e.target.value)}
                 placeholder="Ask something... (e.g., 'Why did we choose React?', 'What was decided about pricing?')"
+                aria-label="Ask a question"
                 className="flex-1 px-4 py-2 border rounded-md dark:bg-zinc-900 dark:border-zinc-700"
               />
               <Button type="submit" disabled={asking}>

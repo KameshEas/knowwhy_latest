@@ -73,7 +73,8 @@ export async function POST(request: Request) {
       }
 
       // Skip bot messages and edits
-      if (event.subtype === "bot_message" || event.subtype === "message_changed" || event.subtype === "message_deleted") {
+      const subtype = (event as any).subtype || event.message?.subtype
+      if (subtype === "bot_message" || subtype === "message_changed" || subtype === "message_deleted") {
         return NextResponse.json({ message: "Skipping bot/edited message" }, { status: 200 })
       }
 

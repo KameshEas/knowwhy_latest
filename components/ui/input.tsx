@@ -2,11 +2,16 @@ import * as React from "react"
 
 import { cn } from "@/lib/utils"
 
-export type InputProps = React.InputHTMLAttributes<HTMLInputElement>
+export type InputProps = React.InputHTMLAttributes<HTMLInputElement> & {
+  /** Optional visible or screen-reader-only label. If provided, the input will be wrapped with a label. */
+  label?: string
+  /** When true, render the label as visible text (default is sr-only) */
+  labelVisible?: boolean
+}
 
 const Input = React.forwardRef<HTMLInputElement, InputProps>(
-  ({ className, type, ...props }, ref) => {
-    return (
+  ({ className, type, label, labelVisible = false, ...props }, ref) => {
+    const input = (
       <input
         type={type}
         className={cn(
@@ -17,6 +22,17 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
         {...props}
       />
     )
+
+    if (label) {
+      return (
+        <label className={labelVisible ? "block" : "sr-only"}>
+          <span className={labelVisible ? "block text-sm font-medium mb-1" : "sr-only"}>{label}</span>
+          {input}
+        </label>
+      )
+    }
+
+    return input
   }
 )
 Input.displayName = "Input"

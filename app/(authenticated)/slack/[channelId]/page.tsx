@@ -244,7 +244,7 @@ export default function SlackChannelDetailPage() {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
             <Link href="/slack">
-              <Button variant="outline" size="icon" className="hover:bg-purple-50 hover:border-purple-300">
+              <Button variant="outline" size="icon" className="hover:bg-purple-50 hover:border-purple-300" aria-label="Back to channels">
                 <ArrowLeft className="h-4 w-4 text-purple-600" />
               </Button>
             </Link>

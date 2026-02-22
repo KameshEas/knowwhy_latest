@@ -9,15 +9,28 @@ export function getWeaviateClient(): WeaviateClient {
   }
 
   const weaviateUrl = process.env.WEAVIATE_URL || 'http://localhost:8080'
-  
+
   // For local development, we can use anonymous access
   // In production, you would configure API keys
-  client = weaviate.client({
-    url: weaviateUrl,
-    headers: {
-      'X-OpenAI-Api-Key': process.env.GROQ_API_KEY || '', // Fallback for any OpenAI-based features
-    },
-  })
+  try {
+    const parsed = new URL(weaviateUrl)
+    client = weaviate.client({
+      scheme: parsed.protocol.replace(":", ""),
+      host: parsed.host,
+      headers: {
+        'X-OpenAI-Api-Key': process.env.GROQ_API_KEY || '', // Fallback for any OpenAI-based features
+      },
+    })
+  } catch (err) {
+    // Fallback for non-standard URLs
+    client = weaviate.client({
+      scheme: 'http',
+      host: 'localhost:8080',
+      headers: {
+        'X-OpenAI-Api-Key': process.env.GROQ_API_KEY || '',
+      },
+    })
+  }
 
   return client
 }
@@ -211,7 +224,7 @@ export async function searchDecisions(
         valueString: userId,
       })
       .withLimit(limit)
-      .withAdd(['decisionId', 'title', 'summary', 'finalDecision', 'source', 'timestamp'])
+      .withFields('decisionId title summary finalDecision source timestamp')
       .do()
 
     const results = response.data.Get.Decision || []
@@ -266,7 +279,7 @@ export async function hybridSearchDecisions(
         valueString: userId,
       })
       .withLimit(limit)
-      .withAdd(['decisionId', 'title', 'summary', 'finalDecision', 'source', 'timestamp'])
+      .withFields('decisionId title summary finalDecision source timestamp')
       .do()
 
     const results = response.data.Get.Decision || []
@@ -301,14 +314,14 @@ export async function deleteDecisionFromWeaviate(decisionId: string): Promise<bo
         path: ['decisionId'],
         valueString: decisionId,
       })
-      .withAdd(['_id'])
+      .withFields('_id')
       .do()
 
     const results = response.data.Get.Decision || []
 
     if (results.length > 0) {
       const weaviateId = results[0]._id
-      await client.data.deleter().withClassName('Decision').withID(weaviateId).do()
+      await client.data.deleter().withClassName('Decision').withId(weaviateId).do()
     }
 
     return true
@@ -335,7 +348,7 @@ export async function getAllDecisionsFromWeaviate(
         valueString: userId,
       })
       .withLimit(limit)
-      .withAdd(['decisionId'])
+      .withFields('decisionId')
       .do()
 
     const results = response.data.Get.Decision || []

@@ -1,5 +1,6 @@
 "use client"
 
+import Image from "next/image"
 import { signOut } from "next-auth/react"
 import { Button } from "@/components/ui/button"
 import { LogOut, User } from "lucide-react"
@@ -17,10 +18,11 @@ export function UserNav({ user }: UserNavProps) {
     <div className="flex flex-col gap-3">
       <div className="flex items-center gap-3 px-2">
         {user?.image ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
+          <Image
             src={user.image}
             alt={user.name || "User"}
+            width={40}
+            height={40}
             className="h-10 w-10 rounded-full border-2 border-zinc-100 dark:border-zinc-800"
           />
         ) : (

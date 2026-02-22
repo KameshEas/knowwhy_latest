@@ -34,8 +34,8 @@ async function setupAutoSync() {
 
   for (const integration of slackUsers) {
     console.log(`✓ User: ${integration.user.name} (${integration.user.email})`)
-    console.log(`  Workspace: ${integration.workspaceName || "Unknown"}`)
-    console.log(`  Connected: ${integration.createdAt.toLocaleDateString()}\n`)
+    console.log(`  Workspace: ${(integration as any).workspaceName || "Unknown"}`)
+    console.log(`  Connected: ${(integration as any).createdAt?.toLocaleDateString()}\n`)
   }
 
   console.log("\n📋 To enable automatic sync, choose one option:\n")

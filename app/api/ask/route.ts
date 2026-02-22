@@ -130,7 +130,7 @@ ID: ${d.id}
 
     // Use Groq to answer the question with RAG
     const response = await groqClient.chat.completions.create({
-      model: "llama-3.1-70b-versatile", // Use better model for RAG
+      model: "llama-3.3-70b-versatile", // Use supported model for RAG
       messages: [
         {
           role: "system",

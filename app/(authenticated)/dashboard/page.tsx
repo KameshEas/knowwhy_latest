@@ -366,7 +366,7 @@ export default async function DashboardPage() {
               </div>
             ) : (
               <div className="space-y-3">
-                {recentDecisions.map((decision: { id: string; title: string; meeting?: { title: string }; createdAt: Date; confidence: number }) => (
+                {recentDecisions.map((decision) => (
                   <div key={decision.id} className="border-b last:border-0 pb-3 last:pb-0">
                     <p className="text-sm font-medium truncate text-blue-900 dark:text-blue-100">{decision.title}</p>
                     <div className="flex items-center gap-2 mt-1">

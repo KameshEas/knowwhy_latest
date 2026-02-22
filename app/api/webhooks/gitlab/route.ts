@@ -97,6 +97,11 @@ export async function POST(request: Request) {
       project: payload.project?.name,
     })
 
+    // Debug: Log full payload for note events
+    if (payload.object_kind === "note") {
+      console.log("[GitLabWebhook] Note event payload:", JSON.stringify(payload, null, 2))
+    }
+
     // Find the user who has this GitLab instance connected
     const gitlabIntegration = await prisma.gitLabIntegration.findFirst({
       where: {
@@ -114,11 +119,20 @@ export async function POST(request: Request) {
     const userId = gitlabIntegration.userId
 
     // Handle Issue events
-    if (payload.object_kind === "issue" && (payload.event_name === "open" || payload.event_name === "update")) {
+    if (payload.object_kind === "issue") {
       const issue = payload.object_attributes
       
       // Only process new or reopened issues
-      if (issue.action !== "open" && issue.action !== "reopen") {
+      // Check both event_name and object_attributes.action for flexibility
+      const eventName = payload.event_name || issue.action
+      if (eventName !== "open" && eventName !== "reopen" && issue.action !== "open" && issue.action !== "reopen") {
+        console.log("[GitLabWebhook] Issue action not handled:", issue.action, "event_name:", payload.event_name)
+        return NextResponse.json({ message: "Issue action not handled" }, { status: 200 })
+      }
+      
+      // Double check - if action exists and is not open/reopen, skip
+      if (issue.action && issue.action !== "open" && issue.action !== "reopen") {
+        console.log("[GitLabWebhook] Issue action not handled:", issue.action)
         return NextResponse.json({ message: "Issue action not handled" }, { status: 200 })
       }
 
@@ -265,6 +279,186 @@ export async function POST(request: Request) {
       } catch (error) {
         console.error("[GitLabWebhook] Error fetching notes:", error)
         return NextResponse.json({ message: "Error processing issue" }, { status: 200 })
+      }
+    }
+
+    // Handle Note/Comment events (when someone comments on an issue)
+    // Also handle other note types like "Issue" or "Incident"
+    if (payload.object_kind === "note") {
+      const noteEvent = payload as any
+      const noteType = noteEvent.note?.able_type || noteEvent.object_attributes?.noteable_type
+      
+      console.log("[GitLabWebhook] Note event detected, type:", noteType)
+      
+      // Only process notes on issues
+      if (noteType !== "Issue" && noteType !== "MergeRequest") {
+        console.log("[GitLabWebhook] Skipping note event - not an issue or MR")
+        return NextResponse.json({ message: "Not an issue or MR note" }, { status: 200 })
+      }
+      
+      // For Merge Requests, get info from object_attributes
+      const isMR = noteType === "MergeRequest"
+      const targetIid = isMR ? noteEvent.object_attributes?.merge_request_iid : noteEvent.issue?.iid
+      const targetTitle = isMR ? noteEvent.object_attributes?.title : noteEvent.issue?.title
+      const targetUrl = isMR ? noteEvent.object_attributes?.url : (noteEvent.issue?.url || noteEvent.issue?.web_url)
+      
+      console.log("[GitLabWebhook] Processing note/comment on", isMR ? "MR" : "issue", ":", targetIid, targetTitle)
+      
+      // Check if recently analyzed
+      const recentDecision = await prisma.decision.findFirst({
+        where: {
+          userId,
+          source: "gitlab",
+          sourceLink: { contains: targetUrl },
+          createdAt: { gte: new Date(Date.now() - 30 * 60 * 1000) },
+        },
+      })
+
+      if (recentDecision) {
+        return NextResponse.json({ message: "Recently analyzed" }, { status: 200 })
+      }
+
+      try {
+        let notesData: any[] = []
+        
+        if (isMR) {
+          // Fetch MR discussions
+          const discussionsResponse = await fetch(
+            `${gitlabIntegration.gitlabUrl}/api/v4/projects/${noteEvent.project.id}/merge_requests/${targetIid}/discussions?per_page=50`,
+            {
+              headers: {
+                Authorization: `Bearer ${gitlabIntegration.accessToken}`,
+              },
+            }
+          )
+
+          if (!discussionsResponse.ok) {
+            console.log("[GitLabWebhook] Could not fetch MR discussions:", await discussionsResponse.text())
+            return NextResponse.json({ message: "Could not fetch discussions" }, { status: 200 })
+          }
+
+          const discussions = await discussionsResponse.json()
+          notesData = Array.isArray(discussions) ? discussions : []
+        } else {
+          // Fetch issue notes/comments
+          const notesResponse = await fetch(
+            `${gitlabIntegration.gitlabUrl}/api/v4/projects/${noteEvent.project.id}/issues/${targetIid}/notes?per_page=50`,
+            {
+              headers: {
+                Authorization: `Bearer ${gitlabIntegration.accessToken}`,
+              },
+            }
+          )
+
+          if (!notesResponse.ok) {
+            console.log("[GitLabWebhook] Could not fetch issue notes:", await notesResponse.text())
+            return NextResponse.json({ message: "Could not fetch notes" }, { status: 200 })
+          }
+
+          notesData = await notesResponse.json()
+        }
+
+        const notes = Array.isArray(notesData) ? notesData : []
+
+        // Build conversation context from all comments
+        let conversation = isMR 
+          ? `Merge Request #${targetIid}: ${targetTitle}\n`
+          : `Issue Title: ${targetTitle}\n`
+        
+        if (!isMR && noteEvent.issue?.description) {
+          conversation += `\nDescription:\n${noteEvent.issue.description}\n\n`
+        }
+
+        if (notes.length > 0) {
+          conversation += "Discussion:\n"
+          notes.forEach((item: any) => {
+            // Handle both issue notes (array) and MR discussions (nested notes)
+            const notesList = item.notes || [item]
+            notesList
+              .filter((n: any) => !n.system)
+              .forEach((note: any) => {
+                conversation += `${note.author?.name || 'Unknown'}: ${note.body}\n\n`
+              })
+          })
+        }
+
+        // Log the webhook event
+        const webhookLog = await prisma.webhookLog.create({
+          data: {
+            userId,
+            source: "gitlab",
+            eventType: "note",
+            payload: JSON.stringify({ projectId: noteEvent.project.id, targetIid, type: noteType }),
+            status: "pending",
+          },
+        })
+
+        // Analyze for decisions
+        console.log("[GitLabWebhook] Analyzing", isMR ? "MR" : "issue", "comments for decisions...")
+        const detection = await detectDecision(conversation)
+
+        if (detection.isDecision && detection.confidence >= 0.6) {
+          const brief = await generateDecisionBrief(conversation, `GitLab ${isMR ? 'MR' : 'Issue'}: ${targetTitle}`)
+
+          const decision = await prisma.decision.create({
+            data: {
+              userId,
+              title: brief.title,
+              summary: brief.summary,
+              problemStatement: brief.problemStatement,
+              optionsDiscussed: brief.optionsDiscussed,
+              finalDecision: brief.finalDecision,
+              rationale: brief.rationale,
+              actionItems: brief.actionItems,
+              confidence: detection.confidence,
+              source: "gitlab",
+              sourceLink: targetUrl,
+            },
+          })
+
+          // Update webhook log
+          await prisma.webhookLog.update({
+            where: { id: webhookLog.id },
+            data: {
+              status: "processed",
+              decisionId: decision.id,
+              decisionTitle: decision.title,
+              confidence: detection.confidence,
+              processedAt: new Date(),
+            },
+          })
+
+          // Send notification
+          await sendDecisionNotification({
+            userId,
+            type: "decision_detected",
+            title: decision.title,
+            message: `A new decision was detected from GitLab ${isMR ? 'MR' : 'Issue'} #${targetIid} comments with ${Math.round(detection.confidence * 100)}% confidence.`,
+            decisionId: decision.id,
+            source: "gitlab",
+          })
+
+          console.log("[GitLabWebhook] ✅ Decision detected from comments:", decision.title)
+          return NextResponse.json({
+            success: true,
+            decisionId: decision.id,
+            message: "Decision detected from comments"
+          })
+        }
+
+        // Update webhook log for no decision
+        await prisma.webhookLog.update({
+          where: { id: webhookLog.id },
+          data: {
+            status: "processed",
+            processedAt: new Date(),
+          },
+        })
+
+        return NextResponse.json({ message: "No decision detected in comments" }, { status: 200 })
+      } catch (error) {
+        console.error("[GitLabWebhook] Error processing note event:", error)
+        return NextResponse.json({ message: "Error processing comment" }, { status: 200 })
       }
     }
 

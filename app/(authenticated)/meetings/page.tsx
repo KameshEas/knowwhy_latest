@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { toast } from "sonner"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { format } from "date-fns"
@@ -28,6 +29,7 @@ export default function MeetingsPage() {
   const [authError, setAuthError] = useState<string | null>(null)
   const [disconnecting, setDisconnecting] = useState(false)
   const [cancellingId, setCancellingId] = useState<string | null>(null)
+  const [pendingCancelId, setPendingCancelId] = useState<string | null>(null)
   const [analyzingId, setAnalyzingId] = useState<string | null>(null)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [analysisResult, setAnalysisResult] = useState<any>(null)
@@ -71,10 +73,6 @@ export default function MeetingsPage() {
   }
 
   const cancelMeeting = async (meetingId: string) => {
-    if (!confirm("Are you sure you want to cancel this meeting?")) {
-      return
-    }
-
     setCancellingId(meetingId)
     try {
       const response = await fetch(`/api/meetings/${meetingId}/cancel`, {
@@ -83,15 +81,17 @@ export default function MeetingsPage() {
       const data = await response.json()
 
       if (data.success) {
+        toast.success("Meeting canceled")
         await fetchMeetings()
       } else {
-        alert(data.error || "Failed to cancel meeting")
+        toast.error(data.error || "Failed to cancel meeting")
       }
     } catch (error) {
       console.error("Error cancelling meeting:", error)
-      alert("Failed to cancel meeting")
+      toast.error("Failed to cancel meeting")
     } finally {
       setCancellingId(null)
+      setPendingCancelId(null)
     }
   }
 
@@ -106,11 +106,11 @@ export default function MeetingsPage() {
       if (data.success) {
         setAnalysisResult(data)
       } else {
-        alert(data.message || "No decision detected in this meeting")
+        toast.error(data.message || "No decision detected in this meeting")
       }
     } catch (error) {
       console.error("Error analyzing meeting:", error)
-      alert("Failed to analyze meeting. Make sure GROQ_API_KEY is set in .env")
+      toast.error("Failed to analyze meeting. Make sure GROQ_API_KEY is set in .env")
     } finally {
       setAnalyzingId(null)
     }
@@ -331,6 +331,24 @@ export default function MeetingsPage() {
         </div>
       )}
 
+      {/* Cancel Confirmation Modal */}
+      {pendingCancelId && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-zinc-950 rounded-lg p-6 w-full max-w-md">
+            <h3 className="text-lg font-medium mb-2">Cancel Meeting</h3>
+            <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-4">Are you sure you want to cancel this meeting? This action cannot be undone.</p>
+            <div className="flex gap-2">
+              <Button variant="outline" className="flex-1" onClick={() => setPendingCancelId(null)}>
+                Keep Meeting
+              </Button>
+              <Button variant="destructive" className="flex-1" onClick={() => cancelMeeting(pendingCancelId)} disabled={!!cancellingId}>
+                {cancellingId ? <Loader2 className="h-4 w-4 animate-spin" /> : "Confirm Cancel"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Create Meeting Modal */}
       {showCreateModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
@@ -476,8 +494,9 @@ export default function MeetingsPage() {
                     <Button
                       variant="destructive"
                       size="sm"
-                      onClick={() => cancelMeeting(meeting.id)}
+                      onClick={() => setPendingCancelId(meeting.id)}
                       disabled={cancellingId === meeting.id}
+                      aria-label="Cancel meeting"
                     >
                       {cancellingId === meeting.id ? (
                         <Loader2 className="h-4 w-4 animate-spin" />
