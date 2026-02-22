@@ -114,7 +114,7 @@ export async function POST(request: Request) {
     const userId = gitlabIntegration.userId
 
     // Handle Issue events
-    if (payload.object_kind === "issue" && payload.event_name === "open" || payload.event_name === "update") {
+    if (payload.object_kind === "issue" && (payload.event_name === "open" || payload.event_name === "update")) {
       const issue = payload.object_attributes
       
       // Only process new or reopened issues
@@ -139,6 +139,7 @@ export async function POST(request: Request) {
       }
 
       // Fetch issue notes/comments
+      let notes: any[] = []
       try {
         const notesResponse = await fetch(
           `${gitlabIntegration.gitlabUrl}/api/v4/projects/${payload.project.id}/issues/${issue.iid}/notes?per_page=50`,
@@ -149,7 +150,27 @@ export async function POST(request: Request) {
           }
         )
 
-        const notes = await notesResponse.json()
+        // Handle case where project doesn't have issues
+        if (!notesResponse.ok) {
+          const errorText = await notesResponse.text()
+          console.log("[GitLabWebhook] No issues found or project not accessible:", errorText)
+          // Log the webhook event but return success
+          await prisma.webhookLog.create({
+            data: {
+              userId,
+              source: "gitlab",
+              eventType: "issue",
+              payload: JSON.stringify({ projectId: payload.project.id, issueIid: issue.iid }),
+              status: "processed",
+              errorMessage: "No issues in project or not accessible",
+              processedAt: new Date(),
+            },
+          })
+          return NextResponse.json({ message: "No issues in project" }, { status: 200 })
+        }
+
+        const notesData = await notesResponse.json()
+        notes = Array.isArray(notesData) ? notesData : []
         
         // Build conversation context
         let conversation = `Issue Title: ${issue.title}\n`
@@ -158,7 +179,7 @@ export async function POST(request: Request) {
           conversation += `\nDescription:\n${issue.description}\n\n`
         }
 
-        if (notes && Array.isArray(notes) && notes.length > 0) {
+        if (notes.length > 0) {
           conversation += "Discussion:\n"
           notes
             .filter((n: any) => !n.system)
@@ -249,7 +270,7 @@ export async function POST(request: Request) {
 
     // Handle Merge Request events
     if (payload.object_kind === "merge_request") {
-      const mr = payload.object_attributes
+      const mr = payload.object_attributes as GitLabMREvent["object_attributes"]
 
       // Only process new or updated MRs
       if (mr.action !== "open" && mr.action !== "reopen" && mr.action !== "merge") {
@@ -273,6 +294,7 @@ export async function POST(request: Request) {
       }
 
       // Fetch MR discussions
+      let discussions: any[] = []
       try {
         const discussionsResponse = await fetch(
           `${gitlabIntegration.gitlabUrl}/api/v4/projects/${payload.project.id}/merge_requests/${mr.iid}/discussions?per_page=50`,
@@ -283,11 +305,19 @@ export async function POST(request: Request) {
           }
         )
 
-        const discussions = await discussionsResponse.json()
+        // Handle case where project doesn't have MRs or not accessible
+        if (!discussionsResponse.ok) {
+          const errorText = await discussionsResponse.text()
+          console.log("[GitLabWebhook] No MRs found or project not accessible:", errorText)
+          return NextResponse.json({ message: "No merge requests in project" }, { status: 200 })
+        }
+
+        const discussionsData = await discussionsResponse.json()
+        discussions = Array.isArray(discussionsData) ? discussionsData : []
 
         // Build conversation context
         let conversation = `Merge Request Title: ${mr.title}\n`
-        conversation += `Source Branch: ${mr.source_branch} → ${mr.target_branch}\n`
+        conversation += `Source Branch: ${mr.source_branch || 'unknown'} → ${mr.target_branch || 'unknown'}\n`
         conversation += `State: ${mr.state}\n`
         if (mr.description) {
           conversation += `\nDescription:\n${mr.description}\n\n`
