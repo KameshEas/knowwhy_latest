@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { format } from "date-fns"
 import { X, ChevronRight, Loader2 } from "lucide-react"
+import VirtualizedGrid from "@/components/virtualized-grid"
 import { EmptyState } from "@/components/empty-state"
 
 interface Decision {
@@ -91,6 +92,14 @@ export default function DecisionsPage() {
     fetchDecisions()
   }, [])
 
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setSelectedDecision(null)
+    }
+    document.addEventListener("keydown", handleKeyDown)
+    return () => document.removeEventListener("keydown", handleKeyDown)
+  }, [])
+
   const filteredDecisions =
     sourceFilter === "all"
       ? decisions
@@ -109,12 +118,17 @@ export default function DecisionsPage() {
 
       {/* Decision Detail Modal */}
       {selectedDecision && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+        <div
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="decision-modal-title"
+        >
           <div className="bg-white dark:bg-zinc-950 rounded-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto">
             <div className="p-6">
               <div className="flex items-start justify-between mb-4">
                 <div>
-                  <h2 className="text-xl font-semibold text-blue-900 dark:text-blue-100">{selectedDecision.title}</h2>
+                  <h2 id="decision-modal-title" className="text-xl font-semibold text-blue-900 dark:text-blue-100">{selectedDecision.title}</h2>
                   <p className="text-sm text-zinc-500 mt-1">
                     Detected on {format(new Date(selectedDecision.createdAt), "PPP")}
                   </p>
@@ -122,6 +136,7 @@ export default function DecisionsPage() {
                 <button
                   onClick={() => setSelectedDecision(null)}
                   className="text-zinc-400 hover:text-zinc-600"
+                  aria-label="Close"
                 >
                   <X className="w-6 h-6" />
                 </button>
@@ -248,43 +263,47 @@ export default function DecisionsPage() {
                 <p className="text-xs text-zinc-500">
                   Showing {filteredDecisions.length} of {decisions.length} decisions
                 </p>
-                {filteredDecisions.map((decision) => (
-                  <div
-                    key={decision.id}
-                    className="p-4 border border-zinc-200 dark:border-zinc-800 rounded-lg hover:border-blue-300 dark:hover:border-blue-700 hover:bg-blue-50/50 dark:hover:bg-blue-900/10 cursor-pointer transition-all"
-                    onClick={() => setSelectedDecision(decision)}
-                  >
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <h3 className="font-medium text-blue-900 dark:text-blue-100">{decision.title}</h3>
-                        <p className="text-sm text-zinc-500 mt-1 line-clamp-2">{decision.summary}</p>
-                        <div className="flex items-center gap-2 mt-2 text-xs text-zinc-400">
-                          <span>{format(new Date(decision.createdAt), "PPP")}</span>
-                          {decision.meeting && (
-                            <>
-                              <span>•</span>
-                              <span>{decision.meeting.title}</span>
-                            </>
-                          )}
+                <VirtualizedGrid
+                  items={filteredDecisions}
+                  itemHeight={140}
+                  renderItem={(decision: any) => (
+                    <div
+                      key={decision.id}
+                      className="p-4 border border-zinc-200 dark:border-zinc-800 rounded-lg hover:border-blue-300 dark:hover:border-blue-700 hover:bg-blue-50/50 dark:hover:bg-blue-900/10 cursor-pointer transition-all"
+                      onClick={() => setSelectedDecision(decision)}
+                    >
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <h3 className="font-medium text-blue-900 dark:text-blue-100">{decision.title}</h3>
+                          <p className="text-sm text-zinc-500 mt-1 line-clamp-2">{decision.summary}</p>
+                          <div className="flex items-center gap-2 mt-2 text-xs text-zinc-400">
+                            <span>{format(new Date(decision.createdAt), "PPP")}</span>
+                            {decision.meeting && (
+                              <>
+                                <span>•</span>
+                                <span>{decision.meeting.title}</span>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span
+                            className={`px-2 py-1 rounded-full text-xs font-medium ${
+                              decision.confidence >= 0.8
+                                ? "bg-blue-100 text-blue-800 border border-blue-200"
+                                : decision.confidence >= 0.6
+                                ? "bg-yellow-100 text-yellow-800 border border-yellow-200"
+                                : "bg-gray-100 text-gray-800 border border-gray-200"
+                            }`}
+                          >
+                            {Math.round(decision.confidence * 100)}% confidence
+                          </span>
+                          <ChevronRight className="w-5 h-5 text-zinc-400" />
                         </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <span
-                          className={`px-2 py-1 rounded-full text-xs font-medium ${
-                            decision.confidence >= 0.8
-                              ? "bg-blue-100 text-blue-800 border border-blue-200"
-                              : decision.confidence >= 0.6
-                              ? "bg-yellow-100 text-yellow-800 border border-yellow-200"
-                              : "bg-gray-100 text-gray-800 border border-gray-200"
-                          }`}
-                        >
-                          {Math.round(decision.confidence * 100)}% confidence
-                        </span>
-                        <ChevronRight className="w-5 h-5 text-zinc-400" />
-                      </div>
                     </div>
-                  </div>
-                ))}
+                  )}
+                />
               </div>
             )}
           </CardContent>

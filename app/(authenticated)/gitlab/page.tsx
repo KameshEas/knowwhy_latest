@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
+import VirtualizedGrid from "@/components/virtualized-grid"
 import { 
   Loader2, 
   GitBranch,
@@ -234,87 +235,66 @@ export default function GitLabProjectsPage() {
         </Card>
       ) : (
         <>
-          <p className="text-xs text-zinc-500 mb-2">
-            Showing {filteredProjects.length} of {projects.length} projects
-          </p>
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {filteredProjects.map((project) => (
-            <Card key={project.id} className="hover:shadow-lg hover:border-orange-300 transition-all border-2 border-transparent">
-              <CardHeader className="pb-3">
-                <div className="flex items-start justify-between">
-                  <div className="flex items-center gap-2">
-                    <GitBranch className="h-5 w-5 text-orange-600" />
-                    <CardTitle className="text-lg text-orange-900 dark:text-orange-100">{project.name}</CardTitle>
-                  </div>
-                  {project.visibility === "private" ? (
-                    <Badge variant="secondary" className="bg-orange-100 text-orange-700"><Lock className="h-3 w-3 mr-1" /> Private</Badge>
-                  ) : (
-                    <Badge variant="outline" className="border-orange-200 text-orange-600"><Globe className="h-3 w-3 mr-1" /> {project.visibility}</Badge>
-                  )}
-                </div>
-                <CardDescription className="truncate">
-                  {project.path}
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {project.description && (
-                  <p className="text-sm text-zinc-600 dark:text-zinc-400 line-clamp-2">
-                    {project.description}
-                  </p>
-                )}
-                
-                {/* Webhook Status */}
-                <div className="flex items-center justify-between pt-2">
-                  <div className="flex items-center gap-2">
-                    {webhookStatus[project.id]?.loading ? (
-                      <>
-                        <Loader2 className="h-4 w-4 animate-spin text-orange-600" />
-                        <span className="text-sm text-orange-600">Checking...</span>
-                      </>
-                    ) : webhookStatus[project.id]?.configured ? (
-                      <>
-                        <CheckCircle className="h-4 w-4 text-green-600" />
-                        <span className="text-sm text-green-600">Webhook configured</span>
-                      </>
+          <p className="text-xs text-zinc-500 mb-2">Showing {filteredProjects.length} of {projects.length} projects</p>
+          <VirtualizedGrid
+            items={filteredProjects}
+            itemHeight={180}
+            renderItem={(project: any) => (
+              <Card key={project.id} className="hover:shadow-lg hover:border-orange-300 transition-all border-2 border-transparent">
+                <CardHeader className="pb-3">
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-center gap-2">
+                      <GitBranch className="h-5 w-5 text-orange-600" />
+                      <CardTitle className="text-lg text-orange-900 dark:text-orange-100">{project.name}</CardTitle>
+                    </div>
+                    {project.visibility === "private" ? (
+                      <Badge variant="secondary" className="bg-orange-100 text-orange-700"><Lock className="h-3 w-3 mr-1" /> Private</Badge>
                     ) : (
-                      <>
-                        <XCircle className="h-4 w-4 text-zinc-400" />
-                        <span className="text-sm text-zinc-500">No webhook</span>
-                      </>
+                      <Badge variant="outline" className="border-orange-200 text-orange-600"><Globe className="h-3 w-3 mr-1" /> {project.visibility}</Badge>
                     )}
                   </div>
-                </div>
-
-                <div className="flex items-center justify-between pt-2 text-sm">
-                  <div className="flex items-center gap-1 text-orange-600">
-                    <Calendar className="h-4 w-4" />
-                    {formatDate(project.createdAt)}
+                  <CardDescription className="truncate">{project.path}</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {project.description && (
+                    <p className="text-sm text-zinc-600 dark:text-zinc-400 line-clamp-2">{project.description}</p>
+                  )}
+                  <div className="flex items-center justify-between pt-2">
+                    <div className="flex items-center gap-2">
+                      {webhookStatus[project.id]?.loading ? (
+                        <>
+                          <Loader2 className="h-4 w-4 animate-spin text-orange-600" />
+                          <span className="text-sm text-orange-600">Checking...</span>
+                        </>
+                      ) : webhookStatus[project.id]?.configured ? (
+                        <>
+                          <CheckCircle className="h-4 w-4 text-green-600" />
+                          <span className="text-sm text-green-600">Webhook configured</span>
+                        </>
+                      ) : (
+                        <>
+                          <XCircle className="h-4 w-4 text-zinc-400" />
+                          <span className="text-sm text-zinc-500">No webhook</span>
+                        </>
+                      )}
+                    </div>
+                    <div className="flex gap-2">
+                      {!webhookStatus[project.id]?.configured && !webhookStatus[project.id]?.loading && (
+                        <Button variant="outline" size="sm" onClick={() => configureWebhook(project.id, project.name)} className="text-orange-600 border-orange-300 hover:bg-orange-50">
+                          <Webhook className="mr-1 h-4 w-4" /> Configure
+                        </Button>
+                      )}
+                      <Link href={`/gitlab/${project.id}`}>
+                        <Button variant="ghost" size="sm" className="text-orange-600 hover:text-orange-700 hover:bg-orange-50">
+                          <MessageSquare className="mr-1 h-4 w-4" /> Issues <ArrowRight className="ml-1 h-4 w-4" />
+                        </Button>
+                      </Link>
+                    </div>
                   </div>
-                  <div className="flex gap-2">
-                    {/* Configure Webhook Button */}
-                    {!webhookStatus[project.id]?.configured && !webhookStatus[project.id]?.loading && (
-                      <Button 
-                        variant="outline" 
-                        size="sm" 
-                        onClick={() => configureWebhook(project.id, project.name)}
-                        className="text-orange-600 border-orange-300 hover:bg-orange-50"
-                      >
-                        <Webhook className="mr-1 h-4 w-4" />
-                        Configure
-                      </Button>
-                    )}
-                    <Link href={`/gitlab/${project.id}`}>
-                      <Button variant="ghost" size="sm" className="text-orange-600 hover:text-orange-700 hover:bg-orange-50">
-                        <MessageSquare className="mr-1 h-4 w-4" />
-                        Issues <ArrowRight className="ml-1 h-4 w-4" />
-                      </Button>
-                    </Link>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-            ))}
-          </div>
+                </CardContent>
+              </Card>
+            )}
+          />
         </>
       )}
     </div>

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import { toast } from "sonner"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { format } from "date-fns"
 import { signOut } from "next-auth/react"
 import { Plus, RefreshCw, Loader2, X, CheckCircle, AlertTriangle, Lightbulb, Trash2, ExternalLink, Video } from "lucide-react"
@@ -135,6 +136,14 @@ export default function MeetingsPage() {
 
   const createMeeting = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (
+      formData.startTime &&
+      formData.endTime &&
+      new Date(formData.endTime) <= new Date(formData.startTime)
+    ) {
+      toast.error("End time must be after start time")
+      return
+    }
     setCreating(true)
     setAuthError(null)
     try {
@@ -180,6 +189,19 @@ export default function MeetingsPage() {
   useEffect(() => {
     fetchMeetings()
   }, [])
+
+  // Close any open modal on Escape key
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return
+      if (analysisResult) { setAnalysisResult(null); return }
+      if (createdMeetLink) { setCreatedMeetLink(null); return }
+      if (pendingCancelId) { setPendingCancelId(null); return }
+      if (showCreateModal) { setShowCreateModal(false); return }
+    }
+    document.addEventListener("keydown", handleKeyDown)
+    return () => document.removeEventListener("keydown", handleKeyDown)
+  }, [analysisResult, createdMeetLink, pendingCancelId, showCreateModal])
 
   const hasMeetings = meetings.length > 0
 
@@ -246,12 +268,17 @@ export default function MeetingsPage() {
 
       {/* Analysis Result Modal */}
       {analysisResult && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+        <div
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="analysis-modal-title"
+        >
           <div className="bg-white dark:bg-zinc-950 rounded-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto">
             <div className="p-6">
               <div className="flex items-start justify-between mb-4">
                 <div>
-                  <h2 className="text-xl font-semibold text-green-600">Decision Detected! ✓</h2>
+                  <h2 id="analysis-modal-title" className="text-xl font-semibold text-green-600">Decision Detected! ✓</h2>
                   <p className="text-sm text-zinc-500 mt-1">
                     AI analyzed the meeting and found a decision
                   </p>
@@ -259,6 +286,7 @@ export default function MeetingsPage() {
                 <button
                   onClick={() => setAnalysisResult(null)}
                   className="text-zinc-400 hover:text-zinc-600"
+                  aria-label="Close"
                 >
                   <X className="w-6 h-6" />
                 </button>
@@ -300,13 +328,18 @@ export default function MeetingsPage() {
 
       {/* Success Modal with Meet Link */}
       {createdMeetLink && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+        <div
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="meetlink-modal-title"
+        >
           <div className="bg-white dark:bg-zinc-950 rounded-lg p-6 w-full max-w-md">
             <div className="text-center">
               <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
                 <CheckCircle className="w-6 h-6 text-green-600" />
               </div>
-              <h2 className="text-xl font-semibold mb-2">Meeting Created!</h2>
+              <h2 id="meetlink-modal-title" className="text-xl font-semibold mb-2">Meeting Created!</h2>
               <p className="text-zinc-500 mb-4">Your Google Meet has been created and added to your calendar.</p>
               <div className="bg-zinc-100 dark:bg-zinc-900 p-4 rounded-lg mb-4">
                 <p className="text-sm text-zinc-500 mb-1">Meet Link:</p>
@@ -345,9 +378,14 @@ export default function MeetingsPage() {
 
       {/* Cancel Confirmation Modal */}
       {pendingCancelId && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+        <div
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="cancel-modal-title"
+        >
           <div className="bg-white dark:bg-zinc-950 rounded-lg p-6 w-full max-w-md">
-            <h3 className="text-lg font-medium mb-2">Cancel Meeting</h3>
+            <h3 id="cancel-modal-title" className="text-lg font-medium mb-2">Cancel Meeting</h3>
             <p className="text-sm text-zinc-600 dark:text-zinc-400 mb-4">Are you sure you want to cancel this meeting? This action cannot be undone.</p>
             <div className="flex gap-2">
               <Button variant="outline" className="flex-1" onClick={() => setPendingCancelId(null)}>
@@ -363,24 +401,31 @@ export default function MeetingsPage() {
 
       {/* Create Meeting Modal */}
       {showCreateModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+        <div
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="create-modal-title"
+        >
           <div className="bg-white dark:bg-zinc-950 rounded-lg p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
-            <h2 className="text-xl font-semibold mb-4">Create New Meeting</h2>
+            <h2 id="create-modal-title" className="text-xl font-semibold mb-4">Create New Meeting</h2>
             <form onSubmit={createMeeting} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium mb-1">Title *</label>
-                <input
+                <label htmlFor="meeting-title" className="block text-sm font-medium mb-1">Title *</label>
+                <Input
+                  id="meeting-title"
                   type="text"
                   required
                   value={formData.title}
                   onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                  className="w-full px-3 py-2 border rounded-md dark:bg-zinc-900 dark:border-zinc-700"
+                  className="w-full"
                   placeholder="Meeting title"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1">Description</label>
+                <label htmlFor="meeting-desc" className="block text-sm font-medium mb-1">Description</label>
                 <textarea
+                  id="meeting-desc"
                   value={formData.description}
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                   className="w-full px-3 py-2 border rounded-md dark:bg-zinc-900 dark:border-zinc-700"
@@ -389,32 +434,35 @@ export default function MeetingsPage() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1">Start Time *</label>
-                <input
+                <label htmlFor="meeting-start" className="block text-sm font-medium mb-1">Start Time *</label>
+                <Input
+                  id="meeting-start"
                   type="datetime-local"
                   required
                   value={formData.startTime}
                   onChange={(e) => setFormData({ ...formData, startTime: e.target.value })}
-                  className="w-full px-3 py-2 border rounded-md dark:bg-zinc-900 dark:border-zinc-700"
+                  className="w-full"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1">End Time *</label>
-                <input
+                <label htmlFor="meeting-end" className="block text-sm font-medium mb-1">End Time *</label>
+                <Input
+                  id="meeting-end"
                   type="datetime-local"
                   required
                   value={formData.endTime}
                   onChange={(e) => setFormData({ ...formData, endTime: e.target.value })}
-                  className="w-full px-3 py-2 border rounded-md dark:bg-zinc-900 dark:border-zinc-700"
+                  className="w-full"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1">Attendees (comma-separated emails)</label>
-                <input
+                <label htmlFor="meeting-attendees" className="block text-sm font-medium mb-1">Attendees (comma-separated emails)</label>
+                <Input
+                  id="meeting-attendees"
                   type="text"
                   value={formData.attendees}
                   onChange={(e) => setFormData({ ...formData, attendees: e.target.value })}
-                  className="w-full px-3 py-2 border rounded-md dark:bg-zinc-900 dark:border-zinc-700"
+                  className="w-full"
                   placeholder="email1@example.com, email2@example.com"
                 />
               </div>
@@ -495,14 +543,14 @@ export default function MeetingsPage() {
                       size="sm"
                       onClick={() => analyzeMeeting(meeting.id)}
                       disabled={analyzingId === meeting.id || !meeting.transcript}
-                      title={!meeting.transcript ? "No transcript available" : "Analyze for decisions"}
+                      title={!meeting.transcript ? "No transcript available yet" : "Analyze for decisions"}
                     >
                       {analyzingId === meeting.id ? (
                         <Loader2 className="h-4 w-4 animate-spin" />
                       ) : (
                         <>
                           <Lightbulb className="mr-1 h-3 w-3" />
-                          Analyze
+                          {meeting.transcript ? "Analyze" : "No Transcript"}
                         </>
                       )}
                     </Button>

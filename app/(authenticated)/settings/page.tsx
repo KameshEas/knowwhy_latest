@@ -91,6 +91,7 @@ export default function SettingsPage() {
     slack: false,
     gitlab: false,
   })
+  const [activeTab, setActiveTab] = useState<string>("integrations")
   const [slackInfo, setSlackInfo] = useState<SlackInfo | null>(null)
   const [gitlabInfo, setGitLabInfo] = useState<GitLabInfo | null>(null)
   const [webhookConfig, setWebhookConfig] = useState<WebhookConfig | null>(null)
@@ -307,10 +308,12 @@ export default function SettingsPage() {
     }
   }
 
-  // Load webhook logs when webhooks tab is selected
+  // Load webhook logs only when the Webhooks tab is active
   useEffect(() => {
-    fetchWebhookLogs()
-  }, [])
+    if (activeTab === "webhooks") {
+      fetchWebhookLogs()
+    }
+  }, [activeTab])
 
   return (
     <div className="space-y-6">

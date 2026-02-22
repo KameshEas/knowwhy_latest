@@ -1,11 +1,11 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import Link from "next/link"
+import { useState, useEffect, useRef } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
+import Link from "next/link"
 import { 
   Loader2, 
   MessageSquare, 
@@ -28,6 +28,60 @@ interface SlackChannel {
   purpose: string
 }
 
+const ITEM_HEIGHT = 200
+
+function VirtualizedChannelGrid({
+  channels,
+  total,
+  rowRenderer,
+}: {
+  channels: any[]
+  total: number
+  rowRenderer: (c: any) => React.ReactElement
+}) {
+  const containerRef = useRef<HTMLDivElement | null>(null)
+  const [scrollTop, setScrollTop] = useState(0)
+  const [height, setHeight] = useState(600)
+
+  useEffect(() => {
+    const el = containerRef.current
+    const measure = () => {
+      setHeight(el?.clientHeight || Math.min(600, Math.round(window.innerHeight * 0.6)))
+    }
+    measure()
+    window.addEventListener("resize", measure)
+    return () => window.removeEventListener("resize", measure)
+  }, [])
+
+  const buffer = 3
+  const visibleCount = Math.ceil(height / ITEM_HEIGHT) + buffer * 2
+  const startIndex = Math.max(0, Math.floor(scrollTop / ITEM_HEIGHT) - buffer)
+  const endIndex = Math.min(channels.length, startIndex + visibleCount)
+
+  const offsetY = startIndex * ITEM_HEIGHT
+  const totalHeight = channels.length * ITEM_HEIGHT
+
+  const visibleItems = channels.slice(startIndex, endIndex)
+
+  return (
+    <div
+      ref={containerRef}
+      onScroll={(e) => setScrollTop((e.target as HTMLDivElement).scrollTop)}
+      className="overflow-auto"
+      style={{ maxHeight: "60vh" }}
+    >
+      <div style={{ height: totalHeight, position: "relative" }}>
+        <div style={{ position: "absolute", top: offsetY, left: 0, right: 0 }}>
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {visibleItems.map((c) => rowRenderer(c))}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+
 export default function SlackChannelsPage() {
   const [channels, setChannels] = useState<SlackChannel[]>([])
   const [filteredChannels, setFilteredChannels] = useState<SlackChannel[]>([])
@@ -41,7 +95,6 @@ export default function SlackChannelsPage() {
     try {
       const response = await fetch("/api/slack/channels")
       const data = await response.json()
-      
       if (data.success) {
         setChannels(data.channels)
         setFilteredChannels(data.channels)
@@ -49,7 +102,7 @@ export default function SlackChannelsPage() {
         setError(data.error || "Failed to fetch channels")
         toast.error(data.error || "Failed to fetch channels")
       }
-    } catch (error) {
+    } catch (err) {
       setError("Failed to fetch channels")
       toast.error("Failed to fetch channels")
     } finally {
