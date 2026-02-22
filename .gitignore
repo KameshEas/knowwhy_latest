@@ -58,5 +58,6 @@ Thumbs.db
 # Project specific
 /docker-compose.override.yml
 *.log
-md
+*.md
+*.txt
 package-lock.json

@@ -1,0 +1,78 @@
+{
+  "_metadata": {
+    "major_version": 1,
+    "minor_version": 1
+  },
+  "name": "KnowWhy - Decision Tracker",
+  "description": "Capture decisions from your Slack conversations automatically using AI",
+  "background_color": "#7c3aed",
+  "icon": "app_icon",
+  "long_description": "KnowWhy helps teams capture and track decisions made in Slack conversations. Using AI, it automatically detects when a decision is made and saves it to your decision library.\n\n**Features:**\n- Automatic decision detection in channels\n- Real-time analysis via webhooks\n- Decision library with search\n- Integration with GitLab and Google Meet\n\n**Required Permissions:**\n- Read messages in channels and conversations\n- Access information about channels\n\n**Setup:**\n1. Install this app\n2. Go to the Event Subscriptions page\n3. Enable events and subscribe to message.channels\n4. Add your webhook URL from KnowWhy Settings\n5. You're ready to track decisions!",
+  "tabs": {
+    "home": {
+      "html": "<html><body><h2>Welcome to KnowWhy!</h2><p>This app helps you track decisions made in Slack.</p><p>Go to <strong>Settings → Webhooks</strong> in KnowWhy to configure.</p></body></html>",
+      "canvas": {
+        "content": {
+          "elements": [
+            {
+              "type": "section",
+              "text": {
+                "type": "mrkdwn",
+                "text": "*Welcome to KnowWhy!*\n\nThis app automatically captures decisions from your Slack conversations using AI."
+              }
+            },
+            {
+              "type": "section",
+              "text": {
+                "type": "mrkdwn",
+                "text": "*Setup Instructions:*\n1. Go to KnowWhy Settings\n2. Navigate to Webhooks tab\n3. Copy your webhook URL\n4. Add it to Event Subscriptions\n5. Subscribe to message.channels"
+              }
+            }
+          ]
+        }
+      }
+    }
+  },
+  "features": {
+    "bot_user": {
+      "display_name": "KnowWhy",
+      "always_online": false
+    },
+    "slash_commands": [],
+    "workflows": [],
+    "ockets": false
+  },
+  "oauth_config": {
+    "scopes": {
+      "bot": [
+        "channels:read",
+        "channels:history",
+        "groups:read",
+        "groups:history",
+        "im:read",
+        "im:history",
+        "mpim:read",
+        "mpim:history",
+        "users:read"
+      ]
+    }
+  },
+  "settings": {
+    "event_subscriptions": {
+      "request_url": "",
+      "enabled": true,
+      "events": [
+        "message.channels",
+        "message.groups",
+        "message.im",
+        "message.mpim"
+      ]
+    },
+    "interactive_components": {
+      "enabled": false
+    },
+    "org_deploy_enabled": false,
+    "socket_mode_enabled": false,
+    "token_rotation_enabled": false
+  }
+}

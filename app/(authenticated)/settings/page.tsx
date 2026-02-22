@@ -15,7 +15,12 @@ import {
   Calendar,
   MessageSquare,
   GitBranch,
-  Shield
+  Shield,
+  Copy,
+  Check,
+  Webhook,
+  ExternalLink,
+  AlertCircle
 } from "lucide-react"
 import { toast } from "sonner"
 
@@ -37,6 +42,32 @@ interface GitLabInfo {
   connectedAt: string
 }
 
+interface WebhookConfig {
+  webhooks: {
+    slack: {
+      url: string
+      events: string[]
+      instructions: string
+      setupSteps?: string[]
+    }
+    gitlab: {
+      url: string
+      events: string[]
+      instructions: string
+      setupSteps?: string[]
+    }
+  }
+  environmentVariables: {
+    slack: { required: string[] }
+    gitlab: { required: string[] }
+  }
+  features?: {
+    realtimeAnalysis?: string
+    cooldown?: string
+    automaticSaving?: string
+  }
+}
+
 export default function SettingsPage() {
   const [status, setStatus] = useState<IntegrationStatus>({
     google: false,
@@ -45,9 +76,13 @@ export default function SettingsPage() {
   })
   const [slackInfo, setSlackInfo] = useState<SlackInfo | null>(null)
   const [gitlabInfo, setGitLabInfo] = useState<GitLabInfo | null>(null)
+  const [webhookConfig, setWebhookConfig] = useState<WebhookConfig | null>(null)
   const [loading, setLoading] = useState(true)
   const [connecting, setConnecting] = useState<string | null>(null)
   const [gitlabToken, setGitlabToken] = useState("")
+  const [copiedField, setCopiedField] = useState<string | null>(null)
+  const [testingWebhook, setTestingWebhook] = useState<string | null>(null)
+  const [testResults, setTestResults] = useState<{slack?: any, gitlab?: any}>({})
 
   const fetchStatus = async () => {
     try {
@@ -65,8 +100,32 @@ export default function SettingsPage() {
     }
   }
 
+  const fetchWebhookConfig = async () => {
+    try {
+      const response = await fetch("/api/webhooks/config")
+      const data = await response.json()
+      if (data.success) {
+        setWebhookConfig(data)
+      }
+    } catch (error) {
+      console.error("Error fetching webhook config:", error)
+    }
+  }
+
+  const copyToClipboard = async (text: string, field: string) => {
+    try {
+      await navigator.clipboard.writeText(text)
+      setCopiedField(field)
+      toast.success("Copied to clipboard!")
+      setTimeout(() => setCopiedField(null), 2000)
+    } catch (error) {
+      toast.error("Failed to copy")
+    }
+  }
+
   useEffect(() => {
     fetchStatus()
+    fetchWebhookConfig()
   }, [])
 
   const connectSlack = async () => {
@@ -170,6 +229,38 @@ export default function SettingsPage() {
     }
   }
 
+  const testWebhook = async (provider: "slack" | "gitlab") => {
+    if (!status[provider]) {
+      toast.error(`${provider === "slack" ? "Slack" : "GitLab"} is not connected`)
+      return
+    }
+
+    setTestingWebhook(provider)
+    try {
+      const response = await fetch("/api/webhooks/test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ provider }),
+      })
+      const data = await response.json()
+
+      if (data.success) {
+        setTestResults(prev => ({ ...prev, [provider]: data.testResult }))
+        if (data.testResult?.decisionDetected) {
+          toast.success(`🎉 ${provider === "slack" ? "Slack" : "GitLab"} webhook test successful! Decision detected.`)
+        } else {
+          toast.info("Webhook working but no decision detected in sample.")
+        }
+      } else {
+        toast.error(data.error || "Test failed")
+      }
+    } catch (error) {
+      toast.error("Test failed")
+    } finally {
+      setTestingWebhook(null)
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div>
@@ -182,6 +273,7 @@ export default function SettingsPage() {
       <Tabs defaultValue="integrations" className="space-y-6">
         <TabsList>
           <TabsTrigger value="integrations">Integrations</TabsTrigger>
+          <TabsTrigger value="webhooks">Webhooks</TabsTrigger>
           <TabsTrigger value="security">Security</TabsTrigger>
         </TabsList>
 
@@ -403,6 +495,210 @@ export default function SettingsPage() {
                   </Button>
                 </div>
               )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="webhooks" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center">
+                  <Webhook className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+                </div>
+                <div>
+                  <CardTitle>Real-time Webhooks</CardTitle>
+                  <CardDescription>Enable instant decision detection</CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
+                <div className="flex items-start gap-3">
+                  <AlertCircle className="w-5 h-5 text-yellow-600 dark:text-yellow-400 mt-0.5" />
+                  <div>
+                    <h4 className="font-medium text-yellow-800 dark:text-yellow-200">Setup Required</h4>
+                    <p className="text-sm text-yellow-700 dark:text-yellow-300 mt-1">
+                      To enable real-time analysis, you need to configure webhooks in Slack and GitLab. 
+                      Add the webhook URLs below to your Slack App and GitLab project settings.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Slack Webhook */}
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <MessageSquare className="w-5 h-5 text-purple-600" />
+                    <h3 className="font-medium">Slack Webhook</h3>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => testWebhook("slack")}
+                    disabled={testingWebhook === "slack" || !status.slack}
+                  >
+                    {testingWebhook === "slack" ? (
+                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    ) : (
+                      <RefreshCw className="h-4 w-4 mr-2" />
+                    )}
+                    Test
+                  </Button>
+                </div>
+                <div className="bg-zinc-50 dark:bg-zinc-900 p-4 rounded-lg space-y-3">
+                  <div className="space-y-1">
+                    <label className="text-xs text-zinc-500 uppercase font-medium">Webhook URL</label>
+                    <div className="flex gap-2">
+                      <Input 
+                        readOnly 
+                        value={webhookConfig?.webhooks?.slack?.url || "Loading..."}
+                        className="font-mono text-sm"
+                      />
+                      <Button 
+                        variant="outline" 
+                        size="icon"
+                        onClick={() => copyToClipboard(webhookConfig?.webhooks?.slack?.url || "", "slack-url")}
+                      >
+                        {copiedField === "slack-url" ? (
+                          <Check className="h-4 w-4 text-green-600" />
+                        ) : (
+                          <Copy className="h-4 w-4" />
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs text-zinc-500 uppercase font-medium">Events</label>
+                    <p className="text-sm font-mono text-zinc-600 dark:text-zinc-400">
+                      {webhookConfig?.webhooks?.slack?.events?.join(", ") || "message.posted"}
+                    </p>
+                  </div>
+                  {/* Test Result */}
+                  {testResults.slack && (
+                    <div className="mt-4 p-3 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800">
+                      <div className="flex items-center gap-2 mb-2">
+                        <CheckCircle2 className="h-4 w-4 text-green-600" />
+                        <span className="text-sm font-medium text-green-800 dark:text-green-200">Test Result</span>
+                      </div>
+                      <p className="text-xs text-green-700 dark:text-green-300">
+                        Decision: {testResults.slack.decisionDetected ? "Detected" : "Not detected"} | 
+                        Confidence: {Math.round(testResults.slack.confidence * 100)}%
+                      </p>
+                      {testResults.slack.title && (
+                        <p className="text-xs font-medium mt-1 text-green-800 dark:text-green-200">
+                          {testResults.slack.title}
+                        </p>
+                      )}
+                    </div>
+                  )}
+                  <div className="pt-2">
+                    <a 
+                      href="https://api.slack.com/apps" 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="text-sm text-purple-600 hover:text-purple-700 flex items-center gap-1"
+                    >
+                      Configure in Slack Apps <ExternalLink className="h-3 w-3" />
+                    </a>
+                  </div>
+                </div>
+              </div>
+
+              <Separator />
+
+              {/* GitLab Webhook */}
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <GitBranch className="w-5 h-5 text-orange-600" />
+                    <h3 className="font-medium">GitLab Webhook</h3>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => testWebhook("gitlab")}
+                    disabled={testingWebhook === "gitlab" || !status.gitlab}
+                  >
+                    {testingWebhook === "gitlab" ? (
+                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    ) : (
+                      <RefreshCw className="h-4 w-4 mr-2" />
+                    )}
+                    Test
+                  </Button>
+                </div>
+                <div className="bg-zinc-50 dark:bg-zinc-900 p-4 rounded-lg space-y-3">
+                  <div className="space-y-1">
+                    <label className="text-xs text-zinc-500 uppercase font-medium">Webhook URL</label>
+                    <div className="flex gap-2">
+                      <Input 
+                        readOnly 
+                        value={webhookConfig?.webhooks?.gitlab?.url || "Loading..."}
+                        className="font-mono text-sm"
+                      />
+                      <Button 
+                        variant="outline" 
+                        size="icon"
+                        onClick={() => copyToClipboard(webhookConfig?.webhooks?.gitlab?.url || "", "gitlab-url")}
+                      >
+                        {copiedField === "gitlab-url" ? (
+                          <Check className="h-4 w-4 text-green-600" />
+                        ) : (
+                          <Copy className="h-4 w-4" />
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs text-zinc-500 uppercase font-medium">Events</label>
+                    <p className="text-sm font-mono text-zinc-600 dark:text-zinc-400">
+                      {webhookConfig?.webhooks?.gitlab?.events?.join(", ") || "issue, merge_request"}
+                    </p>
+                  </div>
+                  {/* Test Result */}
+                  {testResults.gitlab && (
+                    <div className="mt-4 p-3 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800">
+                      <div className="flex items-center gap-2 mb-2">
+                        <CheckCircle2 className="h-4 w-4 text-green-600" />
+                        <span className="text-sm font-medium text-green-800 dark:text-green-200">Test Result</span>
+                      </div>
+                      <p className="text-xs text-green-700 dark:text-green-300">
+                        Decision: {testResults.gitlab.decisionDetected ? "Detected" : "Not detected"} | 
+                        Confidence: {Math.round(testResults.gitlab.confidence * 100)}%
+                      </p>
+                      {testResults.gitlab.title && (
+                        <p className="text-xs font-medium mt-1 text-green-800 dark:text-green-200">
+                          {testResults.gitlab.title}
+                        </p>
+                      )}
+                    </div>
+                  )}
+                  <div className="pt-2">
+                    <a 
+                      href="#" 
+                      className="text-sm text-orange-600 hover:text-orange-700 flex items-center gap-1"
+                    >
+                      Configure in GitLab Project Settings <ExternalLink className="h-3 w-3" />
+                    </a>
+                  </div>
+                </div>
+              </div>
+
+              <Separator />
+
+              {/* Security Info */}
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <Shield className="w-4 h-4 text-green-600" />
+                  <h4 className="text-sm font-medium">Security</h4>
+                </div>
+                <p className="text-sm text-zinc-500">
+                  All webhook requests are verified using signature tokens. Make sure to set the following 
+                  environment variables: <code className="bg-zinc-100 dark:bg-zinc-800 px-1 py-0.5 rounded text-xs">SLACK_SIGNING_SECRET</code> and <code className="bg-zinc-100 dark:bg-zinc-800 px-1 py-0.5 rounded text-xs">GITLAB_WEBHOOK_SECRET</code>
+                </p>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
