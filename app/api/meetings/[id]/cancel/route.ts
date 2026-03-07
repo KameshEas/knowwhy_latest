@@ -44,17 +44,64 @@ export async function POST(
     // Try to cancel in Google Calendar if we have access
     if (account?.access_token && meeting.googleEventId) {
       try {
-        const oauth2Client = new google.auth.OAuth2()
+        const oauth2Client = new google.auth.OAuth2(
+          process.env.GOOGLE_CLIENT_ID,
+          process.env.GOOGLE_CLIENT_SECRET
+        )
         oauth2Client.setCredentials({ access_token: account.access_token })
         const calendar = google.calendar({ version: "v3", auth: oauth2Client })
 
-        await calendar.events.delete({
-          calendarId: "primary",
-          eventId: meeting.googleEventId,
-        })
-      } catch (calendarError) {
-        console.error("Failed to delete from Google Calendar:", calendarError)
-        // Continue to delete from our database even if Google Calendar fails
+        try {
+          await calendar.events.delete({
+            calendarId: "primary",
+            eventId: meeting.googleEventId,
+          })
+        } catch (calendarError: any) {
+          // If token expired (401) and we have a refresh token, attempt refresh + retry
+          if (
+            (calendarError?.code === 401 || calendarError?.response?.status === 401) &&
+            account.refresh_token &&
+            process.env.GOOGLE_CLIENT_ID &&
+            process.env.GOOGLE_CLIENT_SECRET
+          ) {
+            try {
+              const refreshClient = new google.auth.OAuth2(
+                process.env.GOOGLE_CLIENT_ID,
+                process.env.GOOGLE_CLIENT_SECRET
+              )
+              refreshClient.setCredentials({ refresh_token: account.refresh_token })
+              const { credentials } = await refreshClient.refreshAccessToken()
+              const newAccessToken = credentials.access_token
+
+              if (newAccessToken) {
+                // persist new token
+                await prisma.account.update({
+                  where: { id: account.id },
+                  data: {
+                    access_token: newAccessToken,
+                    expires_at: credentials.expiry_date
+                      ? Math.floor(Number(credentials.expiry_date) / 1000)
+                      : undefined,
+                  },
+                })
+
+                // retry delete with refreshed token
+                oauth2Client.setCredentials({ access_token: newAccessToken })
+                const calendarRetry = google.calendar({ version: "v3", auth: oauth2Client })
+                await calendarRetry.events.delete({
+                  calendarId: "primary",
+                  eventId: meeting.googleEventId,
+                })
+              }
+            } catch (refreshErr) {
+              console.error("Failed to refresh Google access token:", refreshErr)
+            }
+          } else {
+            console.error("Failed to delete from Google Calendar:", calendarError)
+          }
+        }
+      } catch (err) {
+        console.error("Google Calendar cancel flow error:", err)
       }
     }
 

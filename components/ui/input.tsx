@@ -24,11 +24,21 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
     )
 
     if (label) {
+      if (labelVisible) {
+        return (
+          <label className="block">
+            <span className="block text-sm font-medium mb-1">{label}</span>
+            {input}
+          </label>
+        )
+      }
+
+      // Keep an accessible label for screen-readers without hiding the input.
       return (
-        <label className={labelVisible ? "block" : "sr-only"}>
-          <span className={labelVisible ? "block text-sm font-medium mb-1" : "sr-only"}>{label}</span>
+        <>
+          <span className="sr-only">{label}</span>
           {input}
-        </label>
+        </>
       )
     }
 

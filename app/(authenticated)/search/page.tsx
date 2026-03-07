@@ -4,8 +4,9 @@ import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
 import { format } from "date-fns"
-import { Search, MessageCircle, Loader2, ArrowRight, FileText } from "lucide-react"
+import { Search, MessageCircle, Loader2, ArrowRight, FileText, X, Tag, Copy } from "lucide-react"
 
 interface Decision {
   id: string
@@ -49,6 +50,25 @@ export default function SearchPage() {
     }, 300)
     return () => clearTimeout(id)
   }, [searchQuery])
+
+  const clearSearch = () => {
+    setSearchQuery("")
+    setSearchResults([])
+    setHasSearched(false)
+  }
+
+  const clearQuestion = () => {
+    setQuestion("")
+    setQaResponse(null)
+  }
+
+  const suggestionTags = ["architecture", "pricing", "team structure", "on-call", "retrospective"]
+
+  const applySuggestion = async (tag: string) => {
+    setSearchQuery(tag)
+    setHasSearched(true)
+    await performSearch(tag)
+  }
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -132,14 +152,22 @@ export default function SearchPage() {
                 labelVisible={false}
                 className="flex-1"
               />
-              <Button type="submit" disabled={searching}>
-                {searching ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Search className="h-4 w-4" />
+              <div className="flex items-stretch gap-2">
+                {searchQuery && (
+                  <Button variant="ghost" onClick={clearSearch} aria-label="Clear search">
+                    <X className="h-4 w-4" />
+                  </Button>
                 )}
-              </Button>
+                <Button type="submit" disabled={searching}>
+                  {searching ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Search className="h-4 w-4" />
+                  )}
+                </Button>
+              </div>
             </div>
+            <p className="text-sm text-zinc-500">Press Enter to search. Results update as you type.</p>
           </form>
 
           {hasSearched && (
@@ -148,6 +176,18 @@ export default function SearchPage() {
                 <div className="text-center py-8 text-zinc-500">
                   <FileText className="mx-auto h-12 w-12 text-zinc-300 mb-4" />
                   <p>No decisions found matching "{searchQuery}"</p>
+                  <div className="mt-4 flex flex-wrap justify-center gap-2">
+                    {suggestionTags.map((t) => (
+                      <button
+                        key={t}
+                        onClick={() => applySuggestion(t)}
+                        className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-sm text-zinc-600 hover:bg-zinc-50"
+                      >
+                        <Tag className="h-4 w-4" />
+                        {t}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               ) : (
                 <div className="space-y-3">
@@ -175,17 +215,20 @@ export default function SearchPage() {
                             )}
                           </div>
                         </div>
-                        <span
-                          className={`px-2 py-1 rounded-full text-xs ${
-                            decision.confidence >= 0.8
-                              ? "bg-green-100 text-green-800"
-                              : decision.confidence >= 0.6
-                              ? "bg-yellow-100 text-yellow-800"
-                              : "bg-gray-100 text-gray-800"
-                          }`}
-                        >
-                          {Math.round(decision.confidence * 100)}%
-                        </span>
+                        <div className="ml-4 flex flex-col items-end gap-2">
+                          <span
+                            className={`px-2 py-1 rounded-full text-xs ${
+                              decision.confidence >= 0.8
+                                ? "bg-green-100 text-green-800"
+                                : decision.confidence >= 0.6
+                                ? "bg-yellow-100 text-yellow-800"
+                                : "bg-gray-100 text-gray-800"
+                            }`}
+                          >
+                            {Math.round(decision.confidence * 100)}%
+                          </span>
+                          <a href={`/#`} className="text-xs text-zinc-500 hover:underline">View</a>
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -210,8 +253,7 @@ export default function SearchPage() {
         <CardContent>
           <form onSubmit={handleAsk} className="space-y-4">
             <div className="flex gap-2">
-              <Input
-                type="text"
+              <Textarea
                 value={question}
                 onChange={(e) => setQuestion(e.target.value)}
                 placeholder="Ask something... (e.g., 'Why did we choose React?', 'What was decided about pricing?')"
@@ -228,12 +270,30 @@ export default function SearchPage() {
                 )}
               </Button>
             </div>
+            <div className="flex gap-2">
+              {question && (
+                <Button variant="ghost" onClick={clearQuestion} className="ml-auto">
+                  <X className="h-4 w-4 mr-2" /> Clear
+                </Button>
+              )}
+            </div>
           </form>
 
           {qaResponse && (
             <div className="mt-6 space-y-4">
               <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg">
-                <h3 className="font-medium text-blue-900 dark:text-blue-100 mb-2">Answer</h3>
+                <div className="flex items-start justify-between">
+                  <h3 className="font-medium text-blue-900 dark:text-blue-100 mb-2">Answer</h3>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => navigator.clipboard?.writeText(qaResponse.answer)}
+                      className="inline-flex items-center gap-2 rounded-md px-2 py-1 text-sm bg-white/50"
+                      aria-label="Copy answer"
+                    >
+                      <Copy className="h-4 w-4" /> Copy
+                    </button>
+                  </div>
+                </div>
                 <div className="text-sm text-blue-800 dark:text-blue-200 whitespace-pre-wrap">
                   {qaResponse.answer}
                 </div>
@@ -244,14 +304,16 @@ export default function SearchPage() {
                   <h3 className="font-medium mb-2">Related Decisions</h3>
                   <div className="space-y-2">
                     {qaResponse.sources.map((source) => (
-                      <div
-                        key={source.id}
-                        className="p-3 border rounded-lg text-sm"
-                      >
-                        <p className="font-medium">{source.title}</p>
-                        <p className="text-zinc-500 text-xs mt-1">
-                          {source.meeting} • {format(new Date(source.date), "PPP")}
-                        </p>
+                      <div key={source.id} className="p-3 border rounded-lg text-sm flex items-start justify-between">
+                        <div>
+                          <p className="font-medium">{source.title}</p>
+                          <p className="text-zinc-500 text-xs mt-1">
+                            {source.meeting} • {format(new Date(source.date), "PPP")}
+                          </p>
+                        </div>
+                        <div className="text-xs text-zinc-500">
+                          <a href="#" className="hover:underline">Open</a>
+                        </div>
                       </div>
                     ))}
                   </div>
