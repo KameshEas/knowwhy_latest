@@ -24,7 +24,10 @@ import {
   AlertCircle,
   Activity,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Download,
+  AlertTriangle,
+  FileText
 } from "lucide-react"
 import { toast } from "sonner"
 import useSWR from "swr"
@@ -108,6 +111,25 @@ export default function SettingsPage() {
   const [logsLoading, setLogsLoading] = useState(false)
   const [logsFilter, setLogsFilter] = useState<{source?: string, status?: string}>({})
   const [logsPagination, setLogsPagination] = useState({ total: 0, limit: 20, offset: 0, hasMore: false })
+
+  // Activity / Audit log state
+  interface AuditLogEntry {
+    id: string
+    action: string
+    metadata: Record<string, unknown>
+    ipAddress?: string
+    createdAt: string
+  }
+  const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>([])
+  const [auditLogsLoading, setAuditLogsLoading] = useState(false)
+  const [auditLogsPagination, setAuditLogsPagination] = useState({ total: 0, limit: 20, offset: 0, hasMore: false })
+
+  // Account deletion state
+  const [deleteConfirmEmail, setDeleteConfirmEmail] = useState("")
+  const [deletingAccount, setDeletingAccount] = useState(false)
+
+  // Data export state
+  const [exporting, setExporting] = useState(false)
 
   const fetchStatus = async () => {
     try {
@@ -332,10 +354,70 @@ export default function SettingsPage() {
     }
   }
 
+  const fetchAuditLogs = async (offset = 0, append = false) => {
+    setAuditLogsLoading(true)
+    try {
+      const params = new URLSearchParams({ limit: "20", offset: String(offset) })
+      const res = await fetch(`/api/user/audit-logs?${params}`)
+      const data = await res.json()
+      if (data.success) {
+        setAuditLogs(prev => append ? [...prev, ...data.logs] : data.logs)
+        setAuditLogsPagination(prev => ({ ...prev, ...data.pagination, offset }))
+      }
+    } catch (err) {
+      console.error("Error fetching audit logs:", err)
+    } finally {
+      setAuditLogsLoading(false)
+    }
+  }
+
+  const handleExportData = async () => {
+    setExporting(true)
+    try {
+      const res = await fetch("/api/user/export")
+      if (!res.ok) {
+        toast.error("Failed to export data")
+        return
+      }
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = url
+      a.download = "knowwhy-data-export.json"
+      a.click()
+      URL.revokeObjectURL(url)
+      toast.success("Data exported successfully")
+    } catch {
+      toast.error("Export failed")
+    } finally {
+      setExporting(false)
+    }
+  }
+
+  const handleDeleteAccount = async (userEmail: string) => {
+    setDeletingAccount(true)
+    try {
+      const res = await fetch("/api/user", { method: "DELETE" })
+      if (!res.ok) {
+        toast.error("Failed to delete account")
+        return
+      }
+      // Sign out and redirect to login
+      window.location.href = "/api/auth/signout?callbackUrl=/login"
+    } catch {
+      toast.error("Failed to delete account")
+    } finally {
+      setDeletingAccount(false)
+    }
+  }
+
   // Load webhook logs only when the Webhooks tab is active
   useEffect(() => {
     if (activeTab === "webhooks") {
       fetchWebhookLogs()
+    }
+    if (activeTab === "activity") {
+      fetchAuditLogs()
     }
   }, [activeTab])
 
@@ -353,6 +435,7 @@ export default function SettingsPage() {
           <TabsTrigger value="integrations">Integrations</TabsTrigger>
           <TabsTrigger value="webhooks">Webhooks</TabsTrigger>
           <TabsTrigger value="security">Security</TabsTrigger>
+          <TabsTrigger value="activity">Activity</TabsTrigger>
         </TabsList>
 
         <TabsContent value="integrations" className="space-y-6">
@@ -985,7 +1068,8 @@ export default function SettingsPage() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="security">
+        <TabsContent value="security" className="space-y-6">
+          {/* Encryption info */}
           <Card>
             <CardHeader>
               <div className="flex items-center gap-3">
@@ -994,7 +1078,7 @@ export default function SettingsPage() {
                 </div>
                 <div>
                   <CardTitle>Security</CardTitle>
-                  <CardDescription>Manage your account security</CardDescription>
+                  <CardDescription>Encryption, legal documents, and account controls</CardDescription>
                 </div>
               </div>
             </CardHeader>
@@ -1002,7 +1086,8 @@ export default function SettingsPage() {
               <div className="space-y-2">
                 <h3 className="text-sm font-medium">Data Encryption</h3>
                 <p className="text-sm text-zinc-500">
-                  All integration tokens are encrypted at rest using AES-256 encryption.
+                  All integration tokens are encrypted at rest using AES-256-GCM encryption.
+                  Data is transmitted over TLS 1.2+.
                 </p>
               </div>
               <Separator />
@@ -1012,6 +1097,220 @@ export default function SettingsPage() {
                   Your Google account is used for primary authentication. Additional integrations (Slack, GitLab) are optional.
                 </p>
               </div>
+              <Separator />
+              <div className="space-y-2">
+                <h3 className="text-sm font-medium">Legal Documents</h3>
+                <p className="text-sm text-zinc-500 mb-3">
+                  Review our legal documents and compliance information.
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {[
+                    { label: "Privacy Policy", href: "/privacy" },
+                    { label: "Terms of Service", href: "/terms" },
+                    { label: "Data Processing Agreement", href: "/dpa" },
+                    { label: "Security Whitepaper", href: "/security" },
+                    { label: "Service Status", href: "/status" },
+                  ].map(({ label, href }) => (
+                    <a
+                      key={href}
+                      href={href}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-md border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors"
+                    >
+                      <FileText className="h-3 w-3" />
+                      {label}
+                      <ExternalLink className="h-3 w-3 text-zinc-400" />
+                    </a>
+                  ))}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Data export */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
+                  <Download className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                </div>
+                <div>
+                  <CardTitle>Export Your Data</CardTitle>
+                  <CardDescription>
+                    Download a copy of all your data (GDPR Art.†20 — right to data portability)
+                  </CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-zinc-500 mb-4">
+                Export includes all your decisions, meetings, integration metadata, and audit log entries
+                in machine-readable JSON format. Integration tokens are never included in exports.
+              </p>
+              <Button
+                variant="outline"
+                onClick={handleExportData}
+                disabled={exporting}
+                className="flex items-center gap-2"
+              >
+                {exporting ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Download className="h-4 w-4" />
+                )}
+                {exporting ? "Preparing export..." : "Download my data"}
+              </Button>
+            </CardContent>
+          </Card>
+
+          {/* Account deletion — danger zone */}
+          <Card className="border-red-200 dark:border-red-900/40">
+            <CardHeader>
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
+                  <AlertTriangle className="w-5 h-5 text-red-600 dark:text-red-400" />
+                </div>
+                <div>
+                  <CardTitle className="text-red-600 dark:text-red-400">Delete Account</CardTitle>
+                  <CardDescription>
+                    Permanently delete your account and all associated data (GDPR Art.†17 — right to erasure)
+                  </CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="rounded-lg bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900/40 p-4">
+                <p className="text-sm text-red-800 dark:text-red-300 font-medium mb-1">This action is irreversible.</p>
+                <p className="text-sm text-red-700 dark:text-red-400">
+                  Deleting your account will permanently remove all decisions, meetings, integrations,
+                  and vector embeddings. Your data cannot be recovered after deletion.
+                  Consider exporting your data first.
+                </p>
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                  Type your email address to confirm
+                </label>
+                <input
+                  type="email"
+                  value={deleteConfirmEmail}
+                  onChange={e => setDeleteConfirmEmail(e.target.value)}
+                  placeholder={status ? "your@email.com" : ""}
+                  className="w-full px-3 py-2 text-sm rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 focus:outline-none focus:ring-2 focus:ring-red-500"
+                />
+              </div>
+              <Button
+                variant="destructive"
+                disabled={
+                  deletingAccount ||
+                  deleteConfirmEmail.trim().toLowerCase() !==
+                    (statusData?.profile?.email ?? "").toLowerCase()
+                }
+                onClick={() => handleDeleteAccount(deleteConfirmEmail)}
+                className="flex items-center gap-2"
+              >
+                {deletingAccount ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Trash2 className="h-4 w-4" />
+                )}
+                {deletingAccount ? "Deleting..." : "Delete my account permanently"}
+              </Button>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Activity / Audit Log tab */}
+        <TabsContent value="activity">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center">
+                  <Activity className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+                </div>
+                <div>
+                  <CardTitle>Activity Log</CardTitle>
+                  <CardDescription>
+                    Immutable record of security-relevant actions on your account
+                  </CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {auditLogsLoading && auditLogs.length === 0 ? (
+                <div className="flex justify-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin text-zinc-400" />
+                </div>
+              ) : auditLogs.length === 0 ? (
+                <p className="text-sm text-zinc-500 text-center py-8">No activity recorded yet.</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-zinc-200 dark:border-zinc-700">
+                        <th className="text-left px-4 py-2 font-medium text-zinc-600 dark:text-zinc-400">Action</th>
+                        <th className="text-left px-4 py-2 font-medium text-zinc-600 dark:text-zinc-400">Details</th>
+                        <th className="text-left px-4 py-2 font-medium text-zinc-600 dark:text-zinc-400">IP Address</th>
+                        <th className="text-left px-4 py-2 font-medium text-zinc-600 dark:text-zinc-400">Time</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
+                      {auditLogs.map(log => (
+                        <tr key={log.id} className="hover:bg-zinc-50 dark:hover:bg-zinc-800/50">
+                          <td className="px-4 py-2">
+                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                              log.action === "LOGIN" ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300" :
+                              log.action === "LOGOUT" ? "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400" :
+                              log.action === "ACCOUNT_DELETED" ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300" :
+                              log.action.includes("DELETED") || log.action.includes("DISCONNECTED") ? "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300" :
+                              "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300"
+                            }`}>
+                              {log.action.replace(/_/g, " ")}
+                            </span>
+                          </td>
+                          <td className="px-4 py-2 text-zinc-600 dark:text-zinc-400 max-w-[240px] truncate">
+                            {Object.entries(log.metadata ?? {}).map(([k, v]) =>
+                              `${k}: ${v}`
+                            ).join(", ") || "—"}
+                          </td>
+                          <td className="px-4 py-2 text-zinc-500 font-mono text-xs">
+                            {log.ipAddress ?? "—"}
+                          </td>
+                          <td className="px-4 py-2 text-zinc-500 text-xs">
+                            {new Date(log.createdAt).toLocaleString()}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {/* Pagination */}
+              {auditLogsPagination.total > auditLogsPagination.limit && (
+                <div className="flex items-center justify-between mt-4">
+                  <p className="text-sm text-zinc-500">
+                    Showing {auditLogs.length} of {auditLogsPagination.total} entries
+                  </p>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline" size="sm"
+                      disabled={auditLogsPagination.offset === 0}
+                      onClick={() => fetchAuditLogs(Math.max(0, auditLogsPagination.offset - auditLogsPagination.limit))}
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="outline" size="sm"
+                      disabled={!auditLogsPagination.hasMore}
+                      onClick={() => fetchAuditLogs(auditLogsPagination.offset + auditLogsPagination.limit)}
+                    >
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>

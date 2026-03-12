@@ -11,6 +11,7 @@
  *
  * The response is streamed as a downloadable `user-data-export.json` attachment.
  */
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { auth } from "@/auth"
 import { prisma } from "@/lib/prisma"
 import { createAuditLog } from "@/lib/audit"
@@ -36,7 +37,6 @@ export async function GET(request: Request) {
             name: true,
             email: true,
             image: true,
-            role: true,
             createdAt: true,
           },
         }),
@@ -73,8 +73,6 @@ export async function GET(request: Request) {
             endTime: true,
             status: true,
             meetLink: true,
-            attendees: true,
-            createdAt: true,
             // Exclude transcript to keep export size manageable; user can request separately
           },
           orderBy: { startTime: "desc" },
@@ -85,7 +83,6 @@ export async function GET(request: Request) {
             select: {
               teamName: true,
               userSlackId: true,
-              allowedChannels: true,
               connectedAt: true,
               // accessToken intentionally excluded
             },
@@ -127,20 +124,7 @@ export async function GET(request: Request) {
         "Integration access tokens are never included in data exports for security reasons.",
       profile: user,
       decisions,
-      meetings: meetings.map((m) => ({
-        ...m,
-        // attendees may be a JSON array stored as a string — parse for cleaner output
-        attendees:
-          typeof m.attendees === "string"
-            ? (() => {
-                try {
-                  return JSON.parse(m.attendees as string)
-                } catch {
-                  return m.attendees
-                }
-              })()
-            : m.attendees,
-      })),
+      meetings,
       integrations: {
         slack: slackIntegration ?? null,
         gitlab: gitlabIntegration ?? null,

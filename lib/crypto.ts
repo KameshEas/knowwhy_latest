@@ -81,3 +81,25 @@ export function encryptToken(token: string | null | undefined): string | null {
   if (!token) return null
   return encrypt(token)
 }
+
+/**
+ * Attempt to decrypt a token that MAY still be stored as plaintext.
+ *
+ * During the migration window (after deploying encryption but before running the
+ * migration script), some tokens in the `accounts` table will still be in plaintext
+ * form. This helper tries to decrypt; on failure it returns the original value so
+ * existing sessions continue working until the migration script runs.
+ *
+ * After the migration script (`scripts/encrypt-google-tokens.ts`) has been run,
+ * this function should never fall back to the plaintext path.
+ */
+export function safeDecryptToken(token: string | null | undefined): string | null {
+  if (!token) return null
+  try {
+    return decrypt(token)
+  } catch {
+    // Token was likely stored as plaintext before encryption was introduced.
+    // Return it as-is so the session remains functional.
+    return token
+  }
+}

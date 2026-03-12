@@ -2,6 +2,7 @@
 import { auth } from "@/auth"
 import { prisma } from "@/lib/prisma"
 import { createGoogleCalendarEvent } from "@/lib/google-calendar"
+import { safeDecryptToken } from "@/lib/crypto"
 import { NextResponse } from "next/server"
 
 export async function POST(request: Request) {
@@ -31,6 +32,9 @@ export async function POST(request: Request) {
       )
     }
 
+    const accessToken = safeDecryptToken(account.access_token)!
+    const refreshToken = safeDecryptToken(account.refresh_token) ?? undefined
+
     const body = await request.json()
     const { title, description, startTime, endTime, attendees } = body
 
@@ -45,7 +49,7 @@ export async function POST(request: Request) {
       // Create event in Google Calendar with Google Meet
       // Pass refresh token and client credentials for automatic token refresh
       const calendarEvent = await createGoogleCalendarEvent(
-        account.access_token,
+        accessToken,
         {
           summary: title,
           description,
@@ -53,7 +57,7 @@ export async function POST(request: Request) {
           endTime: new Date(endTime).toISOString(),
           attendees: attendees || [],
         },
-        account.refresh_token || undefined,
+        refreshToken,
         process.env.GOOGLE_CLIENT_ID,
         process.env.GOOGLE_CLIENT_SECRET
       )

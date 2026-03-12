@@ -1,6 +1,7 @@
 import { auth } from "@/auth"
 import { prisma } from "@/lib/prisma"
 import { getCalendarEvents } from "@/lib/google-calendar"
+import { safeDecryptToken } from "@/lib/crypto"
 import { NextResponse } from "next/server"
 
 export async function POST() {
@@ -26,8 +27,11 @@ export async function POST() {
       )
     }
 
+    // Decrypt the token (encrypted at rest by the auth adapter).
+    const accessToken = safeDecryptToken(account.access_token)!
+
     // Fetch calendar events with Meet links
-    const events = await getCalendarEvents(account.access_token)
+    const events = await getCalendarEvents(accessToken)
 
     // Store meetings in database
     const meetings = await Promise.all(

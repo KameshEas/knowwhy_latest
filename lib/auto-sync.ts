@@ -4,6 +4,7 @@ import { getGitLabProjects, getGitLabIssues, getGitLabIssueNotes } from "./gitla
 import { getCalendarEvents } from "./google-calendar"
 import { detectDecision, generateDecisionBrief } from "./groq"
 import { addDecisionToWeaviate, ensureDecisionSchema } from "./weaviate"
+import { safeDecryptToken } from "./crypto"
 
 interface SyncResult {
   source: string
@@ -290,12 +291,15 @@ async function autoSyncGoogleMeet(userId: string): Promise<SyncResult> {
       return { source: "meet", itemsProcessed: 0, decisionsFound: 0, errors: "Google not connected" }
     }
 
+    // Decrypt the token (encrypted at rest by the auth adapter).
+    const decryptedAccessToken = safeDecryptToken(googleAccount.access_token)!
+
     // Get events from last 7 days
     const timeMin = new Date()
     timeMin.setDate(timeMin.getDate() - 7)
 
     const events = await getCalendarEvents(
-      googleAccount.access_token,
+      decryptedAccessToken,
       timeMin.toISOString(),
       new Date().toISOString()
     )

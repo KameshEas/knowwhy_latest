@@ -3,9 +3,37 @@ import Google from "next-auth/providers/google"
 import { PrismaAdapter } from "@auth/prisma-adapter"
 import { prisma } from "./lib/prisma"
 import { createAuditLog } from "./lib/audit"
+import { encryptToken } from "./lib/crypto"
+
+/**
+ * Wrap the PrismaAdapter so Google OAuth tokens are encrypted at rest.
+ *
+ * The PrismaAdapter's `linkAccount` method writes access_token and refresh_token
+ * directly to the `accounts` table. We intercept that call and encrypt both fields
+ * before they reach the database, using the same AES-256-GCM scheme applied to
+ * Slack and GitLab tokens.
+ *
+ * Read sites must use `safeDecryptToken()` from lib/crypto.ts when reading
+ * `account.access_token` or `account.refresh_token` from the DB.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function makeEncryptedAdapter(): any {
+  const base = PrismaAdapter(prisma) as Record<string, unknown>
+  return {
+    ...base,
+    async linkAccount(account: Record<string, unknown>) {
+      const encrypted = {
+        ...account,
+        access_token: encryptToken(account.access_token as string | null | undefined),
+        refresh_token: encryptToken(account.refresh_token as string | null | undefined),
+      }
+      return (base.linkAccount as (a: Record<string, unknown>) => Promise<unknown>)(encrypted)
+    },
+  }
+}
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
-  adapter: PrismaAdapter(prisma),
+  adapter: makeEncryptedAdapter(),
   providers: [
     Google({
       clientId: process.env.GOOGLE_CLIENT_ID!,

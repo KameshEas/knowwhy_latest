@@ -1,6 +1,7 @@
 import { auth } from "@/auth"
 import { prisma } from "@/lib/prisma"
 import { google } from "googleapis"
+import { safeDecryptToken, encryptToken } from "@/lib/crypto"
 import { NextResponse } from "next/server"
 
 export async function POST(
@@ -44,11 +45,14 @@ export async function POST(
     // Try to cancel in Google Calendar if we have access
     if (account?.access_token && meeting.googleEventId) {
       try {
+        const decryptedAccessToken = safeDecryptToken(account.access_token)!
+        const decryptedRefreshToken = safeDecryptToken(account.refresh_token)
+
         const oauth2Client = new google.auth.OAuth2(
           process.env.GOOGLE_CLIENT_ID,
           process.env.GOOGLE_CLIENT_SECRET
         )
-        oauth2Client.setCredentials({ access_token: account.access_token })
+        oauth2Client.setCredentials({ access_token: decryptedAccessToken })
         const calendar = google.calendar({ version: "v3", auth: oauth2Client })
 
         try {
@@ -60,7 +64,7 @@ export async function POST(
           // If token expired (401) and we have a refresh token, attempt refresh + retry
           if (
             (calendarError?.code === 401 || calendarError?.response?.status === 401) &&
-            account.refresh_token &&
+            decryptedRefreshToken &&
             process.env.GOOGLE_CLIENT_ID &&
             process.env.GOOGLE_CLIENT_SECRET
           ) {
@@ -69,16 +73,16 @@ export async function POST(
                 process.env.GOOGLE_CLIENT_ID,
                 process.env.GOOGLE_CLIENT_SECRET
               )
-              refreshClient.setCredentials({ refresh_token: account.refresh_token })
+              refreshClient.setCredentials({ refresh_token: decryptedRefreshToken })
               const { credentials } = await refreshClient.refreshAccessToken()
               const newAccessToken = credentials.access_token
 
               if (newAccessToken) {
-                // persist new token
+                // Persist new token encrypted
                 await prisma.account.update({
                   where: { id: account.id },
                   data: {
-                    access_token: newAccessToken,
+                    access_token: encryptToken(newAccessToken),
                     expires_at: credentials.expiry_date
                       ? Math.floor(Number(credentials.expiry_date) / 1000)
                       : undefined,
