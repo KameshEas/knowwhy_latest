@@ -141,7 +141,10 @@ function LoginPage() {
                 <span>{loading ? "Signing in..." : "Continue with Google"}</span>
               </Button>
               <p className="text-xs text-zinc-500 dark:text-zinc-500 mt-4 text-center">
-                By signing in, you agree to our Terms of Service and Privacy Policy
+                By signing in, you agree to our{" "}
+                <a href="/terms" className="underline hover:text-zinc-700 dark:hover:text-zinc-300">Terms of Service</a>{" "}
+                and{" "}
+                <a href="/privacy" className="underline hover:text-zinc-700 dark:hover:text-zinc-300">Privacy Policy</a>
               </p>
             </CardContent>
           </Card>

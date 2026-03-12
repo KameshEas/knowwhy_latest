@@ -40,12 +40,18 @@ model Session {
   @@map("sessions")
 }
 
+enum UserRole {
+  USER
+  ADMIN
+}
+
 model User {
   id            String    @id @default(cuid())
   name          String?
   email         String    @unique
   emailVerified DateTime? @map("email_verified")
   image         String?
+  role          UserRole  @default(USER)
   createdAt     DateTime  @default(now()) @map("created_at")
   updatedAt     DateTime  @updatedAt @map("updated_at")
 
@@ -55,6 +61,7 @@ model User {
   meetings           Meeting[]
   slackIntegration   SlackIntegration?
   gitlabIntegration  GitLabIntegration?
+  auditLogs          AuditLog[]
 
   @@map("users")
 }
@@ -69,16 +76,19 @@ model VerificationToken {
 }
 
 model SlackIntegration {
-  id            String   @id @default(cuid())
-  userId        String   @unique @map("user_id")
-  accessToken   String   @map("access_token") @db.Text
-  refreshToken  String?  @map("refresh_token") @db.Text
-  teamId        String   @map("team_id")
-  teamName      String   @map("team_name")
-  userSlackId   String   @map("user_slack_id")
-  scope         String
-  connectedAt   DateTime @default(now()) @map("connected_at")
-  lastSyncAt    DateTime? @map("last_sync_at")
+  id              String   @id @default(cuid())
+  userId          String   @unique @map("user_id")
+  // Token is stored encrypted (AES-256-GCM) via lib/crypto.ts
+  accessToken     String   @map("access_token") @db.Text
+  refreshToken    String?  @map("refresh_token") @db.Text
+  teamId          String   @map("team_id")
+  teamName        String   @map("team_name")
+  userSlackId     String   @map("user_slack_id")
+  scope           String
+  // Allowlist: when non-empty, only listed channel IDs are analysed
+  allowedChannels String[] @map("allowed_channels")
+  connectedAt     DateTime @default(now()) @map("connected_at")
+  lastSyncAt      DateTime? @map("last_sync_at")
   
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -89,6 +99,7 @@ model SlackIntegration {
 model GitLabIntegration {
   id            String   @id @default(cuid())
   userId        String   @unique @map("user_id")
+  // Token is stored encrypted (AES-256-GCM) via lib/crypto.ts
   accessToken   String   @map("access_token") @db.Text
   gitlabUrl     String   @default("https://gitlab.com") @map("gitlab_url")
   username      String
@@ -163,7 +174,8 @@ model WebhookLog {
   userId        String    @map("user_id")
   source        String    // "slack", "gitlab"
   eventType     String    @map("event_type") // "message", "issue", "merge_request"
-  payload       String?   @db.Text // JSON payload stored as text
+  // PII-stripped payload: user display names are removed, only IDs retained
+  payload       String?   @db.Text
   status        String    @default("pending") // pending, processed, failed
   decisionId    String?   @map("decision_id")
   decisionTitle String?   @map("decision_title")
@@ -177,4 +189,35 @@ model WebhookLog {
   @@index([status])
   @@index([createdAt])
   @@map("webhook_logs")
+}
+
+// Idempotency table — prevents re-processing duplicate webhook events.
+// eventId is the Slack event_id or GitLab X-Gitlab-Event-UUID header.
+model WebhookEvent {
+  id        String   @id @default(cuid())
+  source    String   // "slack" | "gitlab"
+  eventId   String   @map("event_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@unique([source, eventId])
+  @@index([createdAt])
+  @@map("webhook_events")
+}
+
+// Append-only audit trail for security-relevant user actions.
+// The API layer never provides an update/delete endpoint for this model.
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  action    String   // AuditAction enum values from lib/audit.ts
+  metadata  Json     @default("{}")
+  ipAddress String?  @map("ip_address")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([action])
+  @@index([createdAt])
+  @@map("audit_logs")
 }

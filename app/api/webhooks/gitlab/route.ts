@@ -2,10 +2,23 @@ import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { detectDecision, generateDecisionBrief } from "@/lib/groq"
 import { sendDecisionNotification } from "@/lib/notifications"
+import { decryptToken } from "@/lib/crypto"
+import { webhookRateLimit } from "@/lib/rate-limit"
+import { createAuditLog } from "@/lib/audit"
+import crypto from "crypto"
 
-// Verify GitLab webhook token
+// ─── Signature verification ────────────────────────────────────────────────────
+
+/**
+ * Timing-safe comparison of the GitLab webhook token.
+ * Using crypto.timingSafeEqual prevents timing-oracle attacks.
+ */
 function verifyGitLabRequest(token: string, expectedToken: string): boolean {
-  return token === expectedToken
+  if (token.length !== expectedToken.length) return false
+  return crypto.timingSafeEqual(
+    Buffer.from(token, "utf8"),
+    Buffer.from(expectedToken, "utf8")
+  )
 }
 
 interface GitLabIssueEvent {
@@ -80,16 +93,54 @@ interface GitLabMREvent {
 
 export async function POST(request: Request) {
   try {
+    // ── Rate limit by IP ──────────────────────────────────────────────────────
+    const ip = request.headers.get("x-forwarded-for")?.split(",")[0].trim() ?? "unknown"
+    const rl = webhookRateLimit(ip)
+    if (!rl.allowed) {
+      return NextResponse.json(
+        { error: "Too many requests" },
+        { status: 429, headers: { "Retry-After": String(rl.retryAfter) } }
+      )
+    }
+
     const token = request.headers.get("x-gitlab-token") || ""
     const secretToken = process.env.GITLAB_WEBHOOK_SECRET
 
-    // Verify request is from GitLab
-    if (secretToken && token !== secretToken) {
+    // ── Signature verification (required) ────────────────────────────────────
+    if (!secretToken) {
+      console.error("[GitLabWebhook] GITLAB_WEBHOOK_SECRET is not set — rejecting all requests")
+      return NextResponse.json({ error: "Webhook not configured" }, { status: 503 })
+    }
+    if (!verifyGitLabRequest(token, secretToken)) {
       console.error("[GitLabWebhook] Invalid token")
+      const gitlabSignatureAuditUserId = process.env.SYSTEM_AUDIT_USER_ID ?? null
+      if (gitlabSignatureAuditUserId) {
+        createAuditLog(
+          gitlabSignatureAuditUserId,
+          "WEBHOOK_SIGNATURE_FAILED",
+          { source: "gitlab", ip, reason: "invalid_token" },
+          request
+        ).catch(() => null)
+      }
       return NextResponse.json({ error: "Invalid token" }, { status: 401 })
     }
 
     const payload = await request.json() as GitLabIssueEvent | GitLabMREvent
+
+    // ── Idempotency check ─────────────────────────────────────────────────────
+    const gitlabEventUuid = request.headers.get("x-gitlab-event-uuid")
+    if (gitlabEventUuid) {
+      try {
+        await (prisma as any).webhookEvent.create({
+          data: { source: "gitlab", eventId: gitlabEventUuid },
+        })
+      } catch (err: any) {
+        if (err?.code === "P2002") {
+          return NextResponse.json({ message: "Duplicate event" }, { status: 200 })
+        }
+        throw err
+      }
+    }
 
     console.log("[GitLabWebhook] Received event:", {
       objectKind: payload.object_kind,
@@ -97,27 +148,48 @@ export async function POST(request: Request) {
       project: payload.project?.name,
     })
 
-    // Debug: Log full payload for note events
-    if (payload.object_kind === "note") {
-      console.log("[GitLabWebhook] Note event payload:", JSON.stringify(payload, null, 2))
-    }
-
-    // Find the user who has this GitLab instance connected
-    const gitlabIntegration = await prisma.gitLabIntegration.findFirst({
-      where: {
-        gitlabUrl: {
-          contains: payload.project?.web_url?.split("/").slice(0, 3).join("/") || "",
-        },
-      },
+    // ── Multi-tenant fan-out ──────────────────────────────────────────────────
+    // Resolve ALL users connected to this GitLab instance (not just the first).
+    const gitlabBaseUrl = payload.project?.web_url?.split("/").slice(0, 3).join("/") || ""
+    const gitlabIntegrations = await prisma.gitLabIntegration.findMany({
+      where: { gitlabUrl: { contains: gitlabBaseUrl } },
     })
 
-    if (!gitlabIntegration) {
+    if (gitlabIntegrations.length === 0) {
       console.log("[GitLabWebhook] No integration found for project")
       return NextResponse.json({ message: "Integration not found" }, { status: 200 })
     }
 
-    const userId = gitlabIntegration.userId
+    // Process for all matching users; use the first integration for the per-event logic below
+    // (existing logic preserved; multi-user fan-out added via parallel processing)
+    await Promise.allSettled(
+      gitlabIntegrations.map((gitlabIntegration) =>
+        processGitLabEventForUser(payload, gitlabIntegration)
+      )
+    )
 
+    return NextResponse.json({ message: "Processed" }, { status: 200 })
+  } catch (error) {
+    console.error("[GitLabWebhook] Error processing webhook:", error)
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Webhook processing failed" },
+      { status: 500 }
+    )
+  }
+}
+
+// ─── Per-user event processor ─────────────────────────────────────────────────
+
+async function processGitLabEventForUser(
+  payload: GitLabIssueEvent | GitLabMREvent,
+  gitlabIntegration: { userId: string; gitlabUrl: string; accessToken: string }
+): Promise<NextResponse | void> {
+  const userId = gitlabIntegration.userId
+  // Decrypt token before use — stored encrypted at rest
+  const accessToken = decryptToken(gitlabIntegration.accessToken)
+  if (!accessToken) return
+
+  try {
     // Handle Issue events
     if (payload.object_kind === "issue") {
       const issue = payload.object_attributes
@@ -159,7 +231,7 @@ export async function POST(request: Request) {
           `${gitlabIntegration.gitlabUrl}/api/v4/projects/${payload.project.id}/issues/${issue.iid}/notes?per_page=50`,
           {
             headers: {
-              Authorization: `Bearer ${gitlabIntegration.accessToken}`,
+              Authorization: `Bearer ${accessToken}`,
             },
           }
         )
@@ -327,7 +399,7 @@ export async function POST(request: Request) {
             `${gitlabIntegration.gitlabUrl}/api/v4/projects/${noteEvent.project.id}/merge_requests/${targetIid}/discussions?per_page=50`,
             {
               headers: {
-                Authorization: `Bearer ${gitlabIntegration.accessToken}`,
+                Authorization: `Bearer ${accessToken}`,
               },
             }
           )
@@ -345,7 +417,7 @@ export async function POST(request: Request) {
             `${gitlabIntegration.gitlabUrl}/api/v4/projects/${noteEvent.project.id}/issues/${targetIid}/notes?per_page=50`,
             {
               headers: {
-                Authorization: `Bearer ${gitlabIntegration.accessToken}`,
+                Authorization: `Bearer ${accessToken}`,
               },
             }
           )
@@ -494,7 +566,7 @@ export async function POST(request: Request) {
           `${gitlabIntegration.gitlabUrl}/api/v4/projects/${payload.project.id}/merge_requests/${mr.iid}/discussions?per_page=50`,
           {
             headers: {
-              Authorization: `Bearer ${gitlabIntegration.accessToken}`,
+              Authorization: `Bearer ${accessToken}`,
             },
           }
         )
@@ -568,13 +640,10 @@ export async function POST(request: Request) {
       }
     }
 
-    return NextResponse.json({ message: "Event type not handled" }, { status: 200 })
+    // Event type not handled — just return void
+    return
   } catch (error) {
-    console.error("[GitLabWebhook] Error processing webhook:", error)
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Webhook processing failed" },
-      { status: 500 }
-    )
+    console.error("[GitLabWebhook] Error processing event for user:", error)
   }
 }
 

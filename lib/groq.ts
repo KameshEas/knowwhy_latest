@@ -1,4 +1,5 @@
 import Groq from "groq-sdk"
+import { detectDecisionOllama, generateDecisionBriefOllama } from "./ollama"
 
 const groq = new Groq({
   apiKey: process.env.GROQ_API_KEY,
@@ -48,6 +49,9 @@ export interface DecisionDetectionResult {
 }
 
 export async function detectDecision(transcript: string): Promise<DecisionDetectionResult> {
+  if (process.env.AI_PROVIDER === "ollama" || !process.env.GROQ_API_KEY) {
+    return detectDecisionOllama(transcript)
+  }
   try {
     const response = await groq.chat.completions.create({
       model: "llama-3.3-70b-versatile",
@@ -128,6 +132,9 @@ export async function generateDecisionBrief(
   rationale: string
   actionItems: string[]
 }> {
+  if (process.env.AI_PROVIDER === "ollama" || !process.env.GROQ_API_KEY) {
+    return generateDecisionBriefOllama(transcript, meetingTitle)
+  }
   try {
     const response = await groq.chat.completions.create({
       model: "llama-3.3-70b-versatile",

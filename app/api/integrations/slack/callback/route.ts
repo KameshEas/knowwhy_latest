@@ -1,5 +1,7 @@
 import { prisma } from "@/lib/prisma"
 import { NextResponse } from "next/server"
+import { encrypt } from "@/lib/crypto"
+import { createAuditLog } from "@/lib/audit"
 
 export async function GET(request: Request) {
   try {
@@ -71,14 +73,14 @@ export async function GET(request: Request) {
       )
     }
 
-    // Save Slack integration
+    // Save Slack integration — tokens are encrypted before storage
     await prisma.slackIntegration.upsert({
       where: {
         userId,
       },
       update: {
-        accessToken: tokenData.access_token,
-        refreshToken: tokenData.refresh_token || null,
+        accessToken: encrypt(tokenData.access_token),
+        refreshToken: tokenData.refresh_token ? encrypt(tokenData.refresh_token) : null,
         teamId: tokenData.team.id,
         teamName: tokenData.team.name,
         userSlackId: tokenData.authed_user.id,
@@ -87,14 +89,16 @@ export async function GET(request: Request) {
       },
       create: {
         userId,
-        accessToken: tokenData.access_token,
-        refreshToken: tokenData.refresh_token || null,
+        accessToken: encrypt(tokenData.access_token),
+        refreshToken: tokenData.refresh_token ? encrypt(tokenData.refresh_token) : null,
         teamId: tokenData.team.id,
         teamName: tokenData.team.name,
         userSlackId: tokenData.authed_user.id,
         scope: tokenData.scope,
       },
     })
+
+    await createAuditLog(userId, "INTEGRATION_CONNECTED", { provider: "slack", teamId: tokenData.team?.id })
 
     return NextResponse.redirect(
       new URL(`/settings?success=slack_connected`, request.url)

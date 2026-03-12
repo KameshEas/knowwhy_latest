@@ -4,6 +4,8 @@ import { prisma } from "@/lib/prisma"
 import { hybridSearchDecisions } from "@/lib/weaviate"
 import { NextResponse } from "next/server"
 import Groq from "groq-sdk"
+import { apiAskRateLimit } from "@/lib/rate-limit"
+import { createAuditLog } from "@/lib/audit"
 
 const groqClient = new Groq({
   apiKey: process.env.GROQ_API_KEY,
@@ -15,6 +17,16 @@ export async function POST(request: Request) {
 
     if (!session?.user?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
+    // Rate-limit per user: 20 requests/minute
+    const rl = apiAskRateLimit(session.user.id)
+    if (!rl.allowed) {
+      createAuditLog(session.user.id, "RATE_LIMIT_HIT", { endpoint: "/api/ask", retryAfter: rl.retryAfter }, request).catch(() => null)
+      return NextResponse.json(
+        { error: "Too many requests. Please wait before asking again." },
+        { status: 429, headers: { "Retry-After": String(rl.retryAfter) } }
+      )
     }
 
     const { question } = await request.json()

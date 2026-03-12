@@ -11,7 +11,7 @@ services:
       - "3000:3000"
     environment:
       - NODE_ENV=production
-      - DATABASE_URL=postgresql://knowwhy:knowwhy_password@postgres:5432/knowwhy
+      - DATABASE_URL=postgresql://knowwhy:${POSTGRES_PASSWORD}@postgres:5432/knowwhy
       - NEXTAUTH_URL=http://localhost:3000
       - NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
       - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
@@ -21,6 +21,7 @@ services:
       - SLACK_CLIENT_SECRET=${SLACK_CLIENT_SECRET}
       - ENCRYPTION_KEY=${ENCRYPTION_KEY}
       - WEAVIATE_URL=http://weaviate:8080
+      - WEAVIATE_API_KEY=${WEAVIATE_API_KEY}
       - OLLAMA_BASE_URL=http://ollama:11434
     depends_on:
       postgres:
@@ -37,7 +38,7 @@ services:
     container_name: knowwhy-db
     environment:
       POSTGRES_USER: knowwhy
-      POSTGRES_PASSWORD: knowwhy_password
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: knowwhy
     ports:
       - "5432:5432"
@@ -53,11 +54,13 @@ services:
   weaviate:
     image: semitechnologies/weaviate:1.25.6
     container_name: knowwhy-weaviate
-    ports:
-      - "8080:8080"
+    # Weaviate port is NOT forwarded to the host — only accessible within the Docker network.
+    # To inspect locally: docker exec -it knowwhy-weaviate wget -qO- http://localhost:8080/v1/meta
     environment:
       QUERY_DEFAULTS_LIMIT: 25
-      AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED: 'true'
+      AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED: 'false'
+      AUTHENTICATION_APIKEY_ENABLED: 'true'
+      AUTHENTICATION_APIKEY_ALLOWED_KEYS: '${WEAVIATE_API_KEY}'
       PERSISTENCE_DATA_PATH: '/var/lib/weaviate'
       ENABLE_MODULES: 'text2vec-ollama'
       CLUSTER_HOSTNAME: 'node1'
@@ -76,8 +79,8 @@ services:
   ollama:
     image: ollama/ollama:latest
     container_name: knowwhy-ollama
-    ports:
-      - "11434:11434"
+    # Ollama port is NOT forwarded to the host — only reachable inside the Docker network.
+    # To pull models: docker exec -it knowwhy-ollama ollama pull mxbai-embed-large
     volumes:
       - ollama_data:/root/.ollama
     environment:

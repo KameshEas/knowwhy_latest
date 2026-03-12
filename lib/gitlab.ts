@@ -1,4 +1,5 @@
 import { prisma } from "./prisma"
+import { decryptToken } from "./crypto"
 
 interface GitLabProject {
   id: number
@@ -24,7 +25,7 @@ export async function getGitLabProjects(userId: string): Promise<GitLabProject[]
     `${integration.gitlabUrl}/api/v4/projects?membership=true&per_page=100`,
     {
       headers: {
-        Authorization: `Bearer ${integration.accessToken}`,
+        Authorization: `Bearer ${decryptToken(integration.accessToken) ?? ""}`,
       },
     }
   )
@@ -53,7 +54,7 @@ export async function getGitLabMergeRequests(
     `${integration.gitlabUrl}/api/v4/projects/${projectId}/merge_requests?state=${state}&per_page=50`,
     {
       headers: {
-        Authorization: `Bearer ${integration.accessToken}`,
+        Authorization: `Bearer ${decryptToken(integration.accessToken) ?? ""}`,
       },
     }
   )
@@ -82,7 +83,7 @@ export async function getGitLabMergeRequestDiscussions(
     `${integration.gitlabUrl}/api/v4/projects/${projectId}/merge_requests/${mrIid}/discussions`,
     {
       headers: {
-        Authorization: `Bearer ${integration.accessToken}`,
+        Authorization: `Bearer ${decryptToken(integration.accessToken) ?? ""}`,
       },
     }
   )
@@ -135,7 +136,7 @@ export async function getGitLabIssues(
     `${integration.gitlabUrl}/api/v4/projects/${projectId}/issues?state=${state}&per_page=50&order_by=updated_at&sort=desc`,
     {
       headers: {
-        Authorization: `Bearer ${integration.accessToken}`,
+        Authorization: `Bearer ${decryptToken(integration.accessToken) ?? ""}`,
       },
     }
   )
@@ -176,7 +177,7 @@ export async function getGitLabIssueNotes(
     `${integration.gitlabUrl}/api/v4/projects/${projectId}/issues/${issueIid}/notes?per_page=100`,
     {
       headers: {
-        Authorization: `Bearer ${integration.accessToken}`,
+        Authorization: `Bearer ${decryptToken(integration.accessToken) ?? ""}`,
       },
     }
   )

@@ -5,27 +5,30 @@ export function getWeaviateClient(): any {
   if (client) return client
 
   const weaviateUrl = process.env.WEAVIATE_URL || 'http://localhost:8080'
+  const weaviateApiKey = process.env.WEAVIATE_API_KEY
 
   // Dynamically import the weaviate client only when needed
   // eslint-disable-next-line @typescript-eslint/no-var-requires
   const weaviate = require('weaviate-ts-client')
+
+  const headers: Record<string, string> = {}
+  // Pass Weaviate API key when authentication is enabled
+  if (weaviateApiKey) {
+    headers['Authorization'] = `Bearer ${weaviateApiKey}`
+  }
 
   try {
     const parsed = new URL(weaviateUrl)
     client = weaviate.client({
       scheme: parsed.protocol.replace(":", ""),
       host: parsed.host,
-      headers: {
-        'X-OpenAI-Api-Key': process.env.GROQ_API_KEY || '',
-      },
+      headers,
     })
   } catch (err) {
     client = weaviate.client({
       scheme: 'http',
       host: 'localhost:8080',
-      headers: {
-        'X-OpenAI-Api-Key': process.env.GROQ_API_KEY || '',
-      },
+      headers,
     })
   }
 

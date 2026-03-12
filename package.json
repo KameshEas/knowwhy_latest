@@ -6,7 +6,12 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "audit:security": "npm audit --audit-level=high",
+    "db:migrate": "prisma migrate deploy",
+    "db:generate": "prisma generate",
+    "encrypt:tokens": "tsx scripts/encrypt-existing-tokens.ts",
+    "test:crypto": "tsx scripts/test-crypto.ts"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.11.1",

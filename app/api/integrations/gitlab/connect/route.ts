@@ -1,6 +1,8 @@
 import { auth } from "@/auth"
 import { prisma } from "@/lib/prisma"
 import { NextResponse } from "next/server"
+import { encrypt } from "@/lib/crypto"
+import { createAuditLog } from "@/lib/audit"
 
 export async function POST(request: Request) {
   try {
@@ -35,13 +37,13 @@ export async function POST(request: Request) {
 
     const userData = await response.json()
 
-    // Save or update GitLab integration
+    // Save or update GitLab integration — token is encrypted before storage
     await prisma.gitLabIntegration.upsert({
       where: {
         userId: session.user.id,
       },
       update: {
-        accessToken: token,
+        accessToken: encrypt(token),
         gitlabUrl,
         username: userData.username,
         userGitlabId: userData.id,
@@ -49,12 +51,14 @@ export async function POST(request: Request) {
       },
       create: {
         userId: session.user.id,
-        accessToken: token,
+        accessToken: encrypt(token),
         gitlabUrl,
         username: userData.username,
         userGitlabId: userData.id,
       },
     })
+
+    await createAuditLog(session.user.id, "INTEGRATION_CONNECTED", { provider: "gitlab", gitlabUrl }, request)
 
     return NextResponse.json({
       success: true,

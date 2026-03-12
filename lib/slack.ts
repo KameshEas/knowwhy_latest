@@ -1,4 +1,5 @@
 import { prisma } from "./prisma"
+import { decryptToken } from "./crypto"
 
 interface SlackChannel {
   id: string
@@ -21,7 +22,7 @@ export async function getSlackChannels(userId: string): Promise<SlackChannel[]> 
 
   const response = await fetch("https://slack.com/api/conversations.list", {
     headers: {
-      Authorization: `Bearer ${integration.accessToken}`,
+      Authorization: `Bearer ${decryptToken(integration.accessToken) ?? ""}`,
     },
   })
 
@@ -51,7 +52,7 @@ export async function getSlackChannelMessages(
     `https://slack.com/api/conversations.history?channel=${channelId}&limit=${limit}`,
     {
       headers: {
-        Authorization: `Bearer ${integration.accessToken}`,
+        Authorization: `Bearer ${decryptToken(integration.accessToken) ?? ""}`,
       },
     }
   )
